@@ -37,15 +37,21 @@ AEAWCharacter::AEAWCharacter()
 	// A capsula de movimento nao participa do combate; quem recebe golpes sao as hitboxes.
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Melee, ECR_Ignore);
 
-	bUseControllerRotationYaw = true;
+	// O corpo NAO gira grudado no mouse: a camera gira na hora e o corpo acompanha com velocidade propria
+	// (parado, so vira os pes depois de 70 graus; ate la o tronco torce na cintura). Ver UpdateBodyTurn.
+	bUseControllerRotationYaw = false;
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationRoll = false;
 	GetCharacterMovement()->bOrientRotationToMovement = false;
+	GetCharacterMovement()->bUseControllerDesiredRotation = true;
+	GetCharacterMovement()->RotationRate = FRotator(0.f, 540.f, 0.f);
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
-	// Inercia: o soldado acelera e freia (antes arrancava e parava na hora).
-	GetCharacterMovement()->MaxAcceleration = 650.f;
-	GetCharacterMovement()->BrakingDecelerationWalking = 700.f;
-	GetCharacterMovement()->GroundFriction = 5.f;
+	// Arranque e freada rapidos (~0,15 s), como no Chivalry; o peso vem da camera, da arma e do giro do corpo.
+	GetCharacterMovement()->MaxAcceleration = 1800.f;
+	GetCharacterMovement()->BrakingDecelerationWalking = 1600.f;
+	GetCharacterMovement()->GroundFriction = 8.f;
+	GetCharacterMovement()->AirControl = 0.15f;
+	GetCharacterMovement()->JumpZVelocity = 380.f;
 
 	// Mira: segue a rotacao de mira no dono, no servidor e nos outros clientes.
 	AimRoot = CreateDefaultSubobject<USceneComponent>(TEXT("AimRoot"));
@@ -112,10 +118,10 @@ AEAWCharacter::AEAWCharacter()
 	static ConstructorHelpers::FObjectFinderOptional<UAnimSequence> F_Finta(TEXT("/Game/Personagem/AS_Sabre_Finta_FP.AS_Sabre_Finta_FP"));
 	AnimCorteEsqFP = F_CorteEsq.Get(); AnimCorteDirFP = F_CorteDir.Get(); AnimDeCimaFP = F_DeCima.Get();
 	AnimParryFP = F_Parry.Get(); AnimBloqueadoFP = F_Bloqueado.Get(); AnimFintaFP = F_Finta.Get();
-	static ConstructorHelpers::FObjectFinderOptional<UAnimSequence> M_Frente(TEXT("/Game/Personagem/AS_Sabre_Andar_Frente.AS_Sabre_Andar_Frente"));
-	static ConstructorHelpers::FObjectFinderOptional<UAnimSequence> M_Tras(TEXT("/Game/Personagem/AS_Sabre_Andar_Tras.AS_Sabre_Andar_Tras"));
-	static ConstructorHelpers::FObjectFinderOptional<UAnimSequence> M_Esq(TEXT("/Game/Personagem/AS_Sabre_Andar_Esq.AS_Sabre_Andar_Esq"));
-	static ConstructorHelpers::FObjectFinderOptional<UAnimSequence> M_Dir(TEXT("/Game/Personagem/AS_Sabre_Andar_Dir.AS_Sabre_Andar_Dir"));
+	static ConstructorHelpers::FObjectFinderOptional<UAnimSequence> M_Frente(TEXT("/Game/Personagem/AS_Trote_Frente.AS_Trote_Frente"));
+	static ConstructorHelpers::FObjectFinderOptional<UAnimSequence> M_Tras(TEXT("/Game/Personagem/AS_Trote_Tras.AS_Trote_Tras"));
+	static ConstructorHelpers::FObjectFinderOptional<UAnimSequence> M_Esq(TEXT("/Game/Personagem/AS_Trote_Esq.AS_Trote_Esq"));
+	static ConstructorHelpers::FObjectFinderOptional<UAnimSequence> M_Dir(TEXT("/Game/Personagem/AS_Trote_Dir.AS_Trote_Dir"));
 	static ConstructorHelpers::FObjectFinderOptional<UAnimSequence> M_Correr(TEXT("/Game/Personagem/AS_Sabre_Correr.AS_Sabre_Correr"));
 	AnimAndarFrente = M_Frente.Get(); AnimAndarTras = M_Tras.Get(); AnimAndarEsq = M_Esq.Get(); AnimAndarDir = M_Dir.Get(); AnimCorrer = M_Correr.Get();
 	static ConstructorHelpers::FObjectFinderOptional<USkeletalMesh> P_Cabeca(TEXT("/Game/Personagem/Pecas/SK_Peca_Cabeca.SK_Peca_Cabeca"));
@@ -177,7 +183,19 @@ AEAWCharacter::AEAWCharacter()
 	EAW_ANIM(AnimMTiro, "AS_Mosquete_Tiro"); EAW_ANIM(AnimMBaixar, "AS_Mosquete_Baixar"); EAW_ANIM(AnimMRecarga, "AS_Mosquete_Recarga");
 	EAW_ANIM(AnimMGuardaFP, "AS_Mosquete_Guarda_FP"); EAW_ANIM(AnimMErguerFP, "AS_Mosquete_Erguer_FP"); EAW_ANIM(AnimMMiraFP, "AS_Mosquete_Mira_FP");
 	EAW_ANIM(AnimMTiroFP, "AS_Mosquete_Tiro_FP"); EAW_ANIM(AnimMBaixarFP, "AS_Mosquete_Baixar_FP"); EAW_ANIM(AnimMRecargaFP, "AS_Mosquete_Recarga_FP");
+	EAW_ANIM(AnimMCoronhada, "AS_Mosquete_Coronhada"); EAW_ANIM(AnimMCoronhadaFP, "AS_Mosquete_Coronhada_FP");
+	EAW_ANIM(AnimMEstocada, "AS_Mosquete_Estocada"); EAW_ANIM(AnimMEstocadaFP, "AS_Mosquete_Estocada_FP");
+	EAW_ANIM(AnimMEstocadaLonga, "AS_Mosquete_EstocadaLonga"); EAW_ANIM(AnimMEstocadaLongaFP, "AS_Mosquete_EstocadaLonga_FP");
+	EAW_ANIM(AnimMAparoDir, "AS_Mosquete_AparoDir"); EAW_ANIM(AnimMAparoDirFP, "AS_Mosquete_AparoDir_FP");
+	EAW_ANIM(AnimMAparoEsq, "AS_Mosquete_AparoEsq"); EAW_ANIM(AnimMAparoEsqFP, "AS_Mosquete_AparoEsq_FP");
+	EAW_ANIM(AnimMBloqueado, "AS_Mosquete_Bloqueado"); EAW_ANIM(AnimMBloqueadoFP, "AS_Mosquete_Bloqueado_FP");
+	EAW_ANIM(AnimMFinta, "AS_Mosquete_Finta"); EAW_ANIM(AnimMFintaFP, "AS_Mosquete_Finta_FP");
 #undef EAW_ANIM
+	{
+		static ConstructorHelpers::FObjectFinderOptional<USkeletalMesh> W_Faca(TEXT("/Game/Armas/SK_Arma_Faca.SK_Arma_Faca"));
+		static ConstructorHelpers::FObjectFinderOptional<USkeletalMesh> W_Machado(TEXT("/Game/Armas/SK_Arma_Machado.SK_Arma_Machado"));
+		MeshFaca = W_Faca.Get(); MeshMachado = W_Machado.Get();
+	}
 
 	// O GameMode cria o controlador do bot explicitamente; os jogadores usam PlayerController.
 	AIControllerClass = AEAWBotController::StaticClass();
@@ -215,8 +233,12 @@ void AEAWCharacter::BeginPlay()
 	Wounds->OnWounded.AddDynamic(this, &AEAWCharacter::HandleWounded);
 	Combat->OnImpact.AddDynamic(this, &AEAWCharacter::HandleImpact);
 	Firearm->OnStateChanged.AddDynamic(this, &AEAWCharacter::HandleFirearmState);
-	WeaponTP->SetMasterPoseComponent(GetMesh());
-	WeaponFP->SetMasterPoseComponent(FirstPersonMesh);
+	if (FParse::Param(FCommandLine::Get(), TEXT("EAWRecargaRapida")))
+	{
+		Firearm->Config.ReloadTime = 3.f;   // teste: varios tiros em pouco tempo
+	}
+	WeaponTP->SetMasterPoseComponent(GetMesh(), true);   // forca: trocar a malha exige refazer o mapa de ossos
+	WeaponFP->SetMasterPoseComponent(FirstPersonMesh, true);
 
 	bAnimated = GetMesh()->SkeletalMesh && AnimGuarda && AnimCorteEsq && AnimCorteDir && AnimDeCima && AnimEstocada
 		&& AnimParry && AnimBloqueado && AnimFinta;
@@ -226,6 +248,7 @@ void AEAWCharacter::BeginPlay()
 		AnimLayers->WalkLeft = AnimAndarEsq; AnimLayers->WalkRight = AnimAndarDir; AnimLayers->Run = AnimCorrer;
 		AnimLayers->SpeedForward = WalkSpeed; AnimLayers->SpeedBack = WalkSpeed * BackSpeedScale;
 		AnimLayers->SpeedSide = WalkSpeed * SideSpeedScale; AnimLayers->SpeedRun = SprintSpeed;
+		AnimLayers->WalkCycle = 19.f / 30.f;   // trote: ciclo de 19 quadros nas 4 direcoes
 	}
 	if (bAnimated)
 	{
@@ -273,11 +296,25 @@ void AEAWCharacter::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	// Mesma rotacao de mira em todas as maquinas: o servidor rastreia a lamina com ela.
-	AimRoot->SetWorldRotation(GetBaseAimRotation());
+	// Dono: rotacao do controle (a "base aim" do jogador inclui a camera - com o balanco, acumulava e a imagem tombava).
+	AimRoot->SetWorldRotation((IsLocallyControlled() && Controller) ? GetControlRotation() : GetBaseAimRotation());
+
+	// Teste -EAWAutoAndar: frente 1,5 s, direita 1 s, tras 1 s, gira 120 graus em 0,8 s, parado 1 s (em ciclo).
+	static const bool bAutoWalk = FParse::Param(FCommandLine::Get(), TEXT("EAWAutoAndar"));
+	if (bAutoWalk && IsLocallyControlled() && IsPlayerControlled() && Controller)
+	{
+		AutoWalkTime += DeltaSeconds;
+		const float T = FMath::Fmod(AutoWalkTime, 5.3f);
+		if (T < 1.5f) MoveForward(1.f);
+		else if (T < 2.5f) MoveRight(1.f);
+		else if (T < 3.5f) MoveForward(-1.f);
+		else if (T < 4.3f) Controller->SetControlRotation(Controller->GetControlRotation() + FRotator(0.f, 150.f * DeltaSeconds, 0.f));
+	}
 
 	ApplyMovementSpeed();
 	UpdateFeel(DeltaSeconds);
 	UpdateFirearmView(DeltaSeconds);
+	UpdateBodyTurn(DeltaSeconds);
 
 	if (IsLocallyControlled() && IsPlayerControlled())
 	{
@@ -312,6 +349,8 @@ void AEAWCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAction("ToggleMelee", IE_Pressed, this, &AEAWCharacter::InputToggleMelee);
 	PlayerInputComponent->BindAction("Weapon1", IE_Pressed, this, &AEAWCharacter::InputWeapon1);
 	PlayerInputComponent->BindAction("Weapon2", IE_Pressed, this, &AEAWCharacter::InputWeapon2);
+	PlayerInputComponent->BindAction("Weapon3", IE_Pressed, this, &AEAWCharacter::InputWeapon3);
+	PlayerInputComponent->BindAction("Weapon4", IE_Pressed, this, &AEAWCharacter::InputWeapon4);
 	PlayerInputComponent->BindAction("Feint", IE_Pressed, this, &AEAWCharacter::InputFeint);
 	PlayerInputComponent->BindAction("ToggleHitboxes", IE_Pressed, this, &AEAWCharacter::InputToggleHitboxes);
 	PlayerInputComponent->BindAction("SpawnBot", IE_Pressed, this, &AEAWCharacter::InputSpawnBot);
@@ -321,8 +360,9 @@ void AEAWCharacter::MoveForward(float Value)
 {
 	if (Value != 0.f && Wounds->CanFight())
 	{
-		// Para tras e mais lento (passo da animacao: 1,0 m/s contra 1,4 m/s para a frente).
-		AddMovementInput(GetActorForwardVector(), Value < 0.f ? Value * BackSpeedScale : Value);
+		// Frente = para onde a camera olha (o corpo vira atras). Para tras e mais lento.
+		const FRotator Yaw(0.f, GetControlRotation().Yaw, 0.f);
+		AddMovementInput(Yaw.Vector(), Value < 0.f ? Value * BackSpeedScale : Value);
 	}
 }
 
@@ -330,7 +370,8 @@ void AEAWCharacter::MoveRight(float Value)
 {
 	if (Value != 0.f && Wounds->CanFight())
 	{
-		AddMovementInput(GetActorRightVector(), Value * SideSpeedScale);   // de lado: 0,85 m/s
+		const FRotator Yaw(0.f, GetControlRotation().Yaw, 0.f);
+		AddMovementInput(FRotationMatrix(Yaw).GetUnitAxis(EAxis::Y), Value * SideSpeedScale);
 	}
 }
 
@@ -364,17 +405,17 @@ void AEAWCharacter::ServerSetSprint_Implementation(bool bNewSprint) { bSprinting
 void AEAWCharacter::InputSlash()
 {
 	if (UsingMusketFire()) { Firearm->RequestFire(); return; }
-	if (CurrentWeapon == EEAWWeapon::Sabre) Combat->RequestSlash();
+	if (UsesMeleeInput()) Combat->RequestSlash();
 }
-void AEAWCharacter::InputOverhead() { if (CurrentWeapon == EEAWWeapon::Sabre) Combat->RequestAttack(EAttackDirection::Overhead); }
-void AEAWCharacter::InputStab()     { if (CurrentWeapon == EEAWWeapon::Sabre) Combat->RequestAttack(EAttackDirection::Stab); }
+void AEAWCharacter::InputOverhead() { if (UsesMeleeInput()) Combat->RequestAttack(EAttackDirection::Overhead); }
+void AEAWCharacter::InputStab()     { if (UsesMeleeInput()) Combat->RequestAttack(EAttackDirection::Stab); }
 void AEAWCharacter::InputParry()
 {
 	if (UsingMusketFire()) { Firearm->RequestAim(true); return; }
-	if (CurrentWeapon == EEAWWeapon::Sabre) Combat->RequestParry();
+	if (UsesMeleeInput()) Combat->RequestParry();
 }
 void AEAWCharacter::InputAimReleased() { if (UsingMusketFire()) Firearm->RequestAim(false); }
-void AEAWCharacter::InputFeint()    { if (CurrentWeapon == EEAWWeapon::Sabre) Combat->RequestFeint(); }
+void AEAWCharacter::InputFeint()    { if (UsesMeleeInput()) Combat->RequestFeint(); }
 void AEAWCharacter::InputReload()   { if (UsingMusketFire()) Firearm->RequestReload(); }
 void AEAWCharacter::InputToggleMelee()
 {
@@ -386,6 +427,8 @@ void AEAWCharacter::InputToggleMelee()
 }
 void AEAWCharacter::InputWeapon1() { ServerEquip(EEAWWeapon::Mosquete); }
 void AEAWCharacter::InputWeapon2() { ServerEquip(EEAWWeapon::Sabre); }
+void AEAWCharacter::InputWeapon3() { ServerEquip(EEAWWeapon::Faca); }
+void AEAWCharacter::InputWeapon4() { ServerEquip(EEAWWeapon::Machado); }
 void AEAWCharacter::ServerEquip_Implementation(EEAWWeapon NewWeapon) { EquipWeapon(NewWeapon); }
 void AEAWCharacter::ServerSetBayonet_Implementation(bool bNew)
 {
@@ -468,7 +511,7 @@ void AEAWCharacter::ApplyMovementSpeed()
 	default: break;
 	}
 	// Mosquete de 4,6 kg: no ombro anda devagar; carregando, quase parado; nunca corre ocupado.
-	float WeightMult = 1.f;
+	float WeightMult = CurrentWeapon == EEAWWeapon::Faca ? 1.03f : CurrentWeapon == EEAWWeapon::Machado ? 0.98f : 1.f;
 	if (CurrentWeapon == EEAWWeapon::Mosquete)
 	{
 		WeightMult = 0.95f;
@@ -647,7 +690,7 @@ void AEAWCharacter::UpdateFeel(float Dt)
 			S * 6.f * FMath::PerlinNoise1D(ShakeTime * 23.f),
 			S * 5.f * FMath::PerlinNoise1D(ShakeTime * 23.f + 50.f),
 			S * 8.f * FMath::PerlinNoise1D(ShakeTime * 23.f + 100.f));
-		Camera->SetRelativeRotation(Shake);
+		Camera->SetRelativeRotation(Shake + CamBob);
 	}
 }
 
@@ -746,28 +789,71 @@ void AEAWCharacter::HandleCombatState(EMeleeState NewState, EAttackDirection Dir
 	{
 		return;
 	}
-	if (NewState != EMeleeState::Incapacitated && CurrentWeapon != EEAWWeapon::Sabre)
+	const bool bMusket = CurrentWeapon == EEAWWeapon::Mosquete;
+	if (NewState != EMeleeState::Incapacitated && bMusket && !bBayonet)
 	{
-		return;   // com o mosquete, quem anima e o HandleFirearmState
+		return;   // mosquete em modo de tiro: quem anima e o HandleFirearmState
 	}
-	// Marcas de tempo das animacoes (30 fps): quadro f -> (f-1)/30 s.
+	// Marcas de tempo das animacoes (30 fps): quadro f -> (f-1)/30 s. As do mosquete usam as mesmas marcas.
 	auto T = [](int32 Frame) { return (Frame - 1) / 30.f; };
 	const float D = Combat->GetStateDuration();
 
-	UAnimSequence* Attack = AnimCorteEsq;
-	UAnimSequence* AttackFP = AnimCorteEsqFP;
+	UAnimSequence* Attack = bMusket ? AnimMCoronhada : AnimCorteEsq;
+	UAnimSequence* AttackFP = bMusket ? AnimMCoronhadaFP : AnimCorteEsqFP;
 	int32 WindupEnd = 15, ReleaseEnd = 24, Last = 41;
 	switch (Direction)
 	{
-	case EAttackDirection::SlashRight: Attack = AnimCorteDir; AttackFP = AnimCorteDirFP; break;
-	case EAttackDirection::Overhead:   Attack = AnimDeCima; AttackFP = AnimDeCimaFP; WindupEnd = 17; ReleaseEnd = 27; Last = 45; break;
-	case EAttackDirection::Stab:       Attack = AnimEstocada; AttackFP = nullptr; WindupEnd = 13; ReleaseEnd = 20; Last = 35; break;
+	case EAttackDirection::SlashRight:
+		if (!bMusket) { Attack = AnimCorteDir; AttackFP = AnimCorteDirFP; }
+		break;
+	case EAttackDirection::Overhead:
+		Attack = bMusket ? AnimMEstocadaLonga : AnimDeCima; AttackFP = bMusket ? AnimMEstocadaLongaFP : AnimDeCimaFP;
+		WindupEnd = 17; ReleaseEnd = 27; Last = 45; break;
+	case EAttackDirection::Stab:
+		Attack = bMusket ? AnimMEstocada : AnimEstocada; AttackFP = bMusket ? AnimMEstocadaFP : nullptr;
+		WindupEnd = 13; ReleaseEnd = 20; Last = 35; break;
 	default: break;
+	}
+	if (bMusket && NewState == EMeleeState::Windup)
+	{
+		// O que corta: coronhada = coronha (do punho ate a soleira); estocadas = baioneta (da boca a ponta).
+		const bool bButt = Direction == EAttackDirection::SlashLeft || Direction == EAttackDirection::SlashRight;
+		Combat->GripSocket = bButt ? TEXT("arma") : TEXT("arma_boca");
+		Combat->TipSocket = bButt ? TEXT("arma_coronha") : TEXT("arma_ponta");
+	}
+	UAnimSequence* Guard = bMusket ? AnimMGuarda : AnimGuarda;
+	UAnimSequence* GuardFP = bMusket ? AnimMGuardaFP : nullptr;
+	UAnimSequence* Parry = AnimParry;
+	UAnimSequence* ParryFP = AnimParryFP;
+	if (bMusket)
+	{
+		// Aparo a direita ou a esquerda conforme o golpe do inimigo mais perto.
+		bool bLeft = false;
+		float Best = 400.f;
+		for (TActorIterator<AEAWCharacter> It(GetWorld()); It; ++It)
+		{
+			const float Dist = It->GetDistanceTo(this);
+			if (*It != this && Dist < Best && It->GetCombat())
+			{
+				Best = Dist;
+				bLeft = It->GetCombat()->GetDirection() == EAttackDirection::SlashLeft;
+			}
+		}
+		Parry = bLeft ? AnimMAparoEsq : AnimMAparoDir;
+		ParryFP = bLeft ? AnimMAparoEsqFP : AnimMAparoDirFP;
+	}
+	UAnimSequence* Feint = bMusket ? AnimMFinta : AnimFinta;
+	UAnimSequence* FeintFP = bMusket ? AnimMFintaFP : AnimFintaFP;
+	UAnimSequence* Blocked = bMusket ? AnimMBloqueado : AnimBloqueado;
+	UAnimSequence* BlockedFP = bMusket ? AnimMBloqueadoFP : AnimBloqueadoFP;
+	if (!Attack || !Guard)
+	{
+		return;
 	}
 
 	switch (NewState)
 	{
-	case EMeleeState::Idle:          PlaySegment(AnimGuarda, 0.f, AnimGuarda->SequenceLength, AnimGuarda->SequenceLength, true); break;
+	case EMeleeState::Idle:          PlaySegment(Guard, 0.f, Guard->SequenceLength, Guard->SequenceLength, true, GuardFP); break;
 	case EMeleeState::Windup:        PlaySegment(Attack, T(1), T(WindupEnd), D, false, AttackFP); break;
 	case EMeleeState::Release:
 		PlaySegment(Attack, T(WindupEnd), T(ReleaseEnd), D, false, AttackFP);
@@ -778,10 +864,10 @@ void AEAWCharacter::HandleCombatState(EMeleeState NewState, EAttackDirection Dir
 		}
 		break;
 	case EMeleeState::Recovery:      PlaySegment(Attack, T(ReleaseEnd), T(Last), D, false, AttackFP); break;
-	case EMeleeState::Parry:         PlaySegment(AnimParry, T(1), T(10), D, false, AnimParryFP); break;
-	case EMeleeState::ParryRecovery: PlaySegment(AnimParry, T(10), T(20), D, false, AnimParryFP); break;
-	case EMeleeState::Feint:         PlaySegment(AnimFinta, T(11), T(19), D, false, AnimFintaFP); break;
-	case EMeleeState::Stunned:       PlaySegment(AnimBloqueado, T(1), T(17), D, false, AnimBloqueadoFP); break;
+	case EMeleeState::Parry:         PlaySegment(Parry, T(1), T(10), D, false, ParryFP); break;
+	case EMeleeState::ParryRecovery: PlaySegment(Parry, T(10), T(20), D, false, ParryFP); break;
+	case EMeleeState::Feint:         PlaySegment(Feint, T(11), T(19), D, false, FeintFP); break;
+	case EMeleeState::Stunned:       PlaySegment(Blocked, T(1), T(17), D, false, BlockedFP); break;
 	case EMeleeState::Incapacitated: StartRagdoll(); break;
 	default: break;
 	}
@@ -1161,11 +1247,34 @@ void AEAWCharacter::PossessedBy(AController* NewController)
 	{
 		FString Arma;
 		FParse::Value(FCommandLine::Get(), TEXT("EAWArma="), Arma);
-		EquipWeapon(Arma == TEXT("Sabre") ? EEAWWeapon::Sabre : EEAWWeapon::Mosquete);
+		EquipWeapon(Arma == TEXT("Sabre") ? EEAWWeapon::Sabre : Arma == TEXT("Faca") ? EEAWWeapon::Faca
+			: Arma == TEXT("Machado") ? EEAWWeapon::Machado : EEAWWeapon::Mosquete);
+		if (CurrentWeapon == EEAWWeapon::Mosquete && FParse::Param(FCommandLine::Get(), TEXT("EAWBaioneta")))
+		{
+			bBayonet = true;   // teste: comeca no modo combate (como se tivesse apertado X)
+			OnRep_Weapon();
+		}
 	}
 	else
 	{
-		EquipWeapon(EEAWWeapon::Sabre);   // bots lutam de sabre (IA de corpo a corpo)
+		// Bots lutam corpo a corpo; teste: -EAWArmaBot=Mosquete (baioneta), Faca, Machado ou Misto (cada bot uma).
+		FString Arma;
+		FParse::Value(FCommandLine::Get(), TEXT("EAWArmaBot="), Arma);
+		static int32 BotCount = 0;
+		if (Arma == TEXT("Misto"))
+		{
+			static const TCHAR* Ordem[] = { TEXT("Machado"), TEXT("Faca"), TEXT("Mosquete"), TEXT("Sabre") };
+			Arma = Ordem[BotCount % 4];
+		}
+		++BotCount;
+		const EEAWWeapon W = Arma == TEXT("Mosquete") ? EEAWWeapon::Mosquete : Arma == TEXT("Faca") ? EEAWWeapon::Faca
+			: Arma == TEXT("Machado") ? EEAWWeapon::Machado : EEAWWeapon::Sabre;
+		EquipWeapon(W);
+		if (W == EEAWWeapon::Mosquete)
+		{
+			bBayonet = true;
+			OnRep_Weapon();
+		}
 	}
 }
 
@@ -1182,7 +1291,7 @@ void AEAWCharacter::EquipWeapon(EEAWWeapon NewWeapon)
 	CurrentWeapon = NewWeapon;
 	bBayonet = false;
 	OnRep_Weapon();
-	UE_LOG(LogEAWCombat, Log, TEXT("%s arma: %s"), *GetName(), NewWeapon == EEAWWeapon::Mosquete ? TEXT("mosquete") : TEXT("sabre"));
+	UE_LOG(LogEAWCombat, Log, TEXT("%s arma: %s"), *GetName(), NewWeapon == EEAWWeapon::Mosquete ? TEXT("mosquete") : NewWeapon == EEAWWeapon::Faca ? TEXT("faca") : NewWeapon == EEAWWeapon::Machado ? TEXT("machado") : TEXT("sabre"));
 }
 
 void AEAWCharacter::OnRep_Weapon()
@@ -1192,22 +1301,24 @@ void AEAWCharacter::OnRep_Weapon()
 
 void AEAWCharacter::ApplyWeaponVisuals()
 {
-	USkeletalMesh* M = CurrentWeapon == EEAWWeapon::Mosquete ? MeshMosquete : MeshSabre;
+	USkeletalMesh* M = CurrentWeapon == EEAWWeapon::Mosquete ? MeshMosquete : CurrentWeapon == EEAWWeapon::Faca ? MeshFaca
+		: CurrentWeapon == EEAWWeapon::Machado ? MeshMachado : MeshSabre;
+	ApplyWeaponCombatConfig();
 	if (M && WeaponTP->SkeletalMesh != M)
 	{
 		WeaponTP->SetSkeletalMesh(M);
 		WeaponFP->SetSkeletalMesh(M);
 		if (WeaponTP->GetAttachParent() == GetMesh())
 		{
-			WeaponTP->SetMasterPoseComponent(GetMesh());
+			WeaponTP->SetMasterPoseComponent(GetMesh(), true);   // forca: trocar a malha exige refazer o mapa de ossos
 		}
-		WeaponFP->SetMasterPoseComponent(FirstPersonMesh);
+		WeaponFP->SetMasterPoseComponent(FirstPersonMesh, true);
 	}
 	const bool bDown = GetMesh()->IsSimulatingPhysics();
 	WeaponFP->SetVisibility(bFirstPersonActive && !bDown);
 	if (UEAWAnimInstance* AnimLayers = Cast<UEAWAnimInstance>(GetMesh()->GetAnimInstance()))
 	{
-		AnimLayers->bAllowUpperRun = CurrentWeapon == EEAWWeapon::Sabre;   // correr com o sabre no ombro
+		AnimLayers->bAllowUpperRun = CurrentWeapon != EEAWWeapon::Mosquete;   // correr com a arma curta no ombro
 	}
 	ApplyFirstPersonLayout();
 	if (!bAnimated || bDown)
@@ -1275,7 +1386,7 @@ void AEAWCharacter::AttachWeaponToSkeleton()
 {
 	WeaponTP->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale);
 	WeaponTP->SetRelativeTransform(FTransform::Identity);
-	WeaponTP->SetMasterPoseComponent(GetMesh());
+	WeaponTP->SetMasterPoseComponent(GetMesh(), true);   // forca: trocar a malha exige refazer o mapa de ossos
 	WeaponTP->SetOwnerNoSee(bFirstPersonActive);
 	ApplyWeaponVisuals();
 }
@@ -1327,7 +1438,7 @@ void AEAWCharacter::HandleFirearmState(EFirearmState NewState, uint8 Stage)
 
 void AEAWCharacter::UpdateFirearmView(float Dt)
 {
-	if (!bFirstPersonActive || !IsLocallyControlled() || GetMesh()->IsSimulatingPhysics())
+	if (!bFirstPersonActive || !IsLocallyControlled() || GetMesh()->IsSimulatingPhysics() || Dt <= 0.f)
 	{
 		return;
 	}
@@ -1337,22 +1448,48 @@ void AEAWCharacter::UpdateFirearmView(float Dt)
 	const FFirearmConfig& C = Firearm->Config;
 	AimAlpha = FMath::FInterpConstantTo(AimAlpha, bUp ? 1.f : 0.f, Dt, 1.f / (bUp ? C.AimInTime : C.AimOutTime));
 	const float A = AimAlpha * AimAlpha * (3.f - 2.f * AimAlpha);
+	const float Free = 1.f - 0.85f * A;   // mirando, quase sem balanco do passo/atraso (o balanco da mira e outro)
+
+	// --- Arma com inercia: atrasa o giro da camera (Chivalry: ~1-2 graus a 100 graus/s, ~70 ms) ---
+	const FRotator Ctrl = GetControlRotation();
+	const FRotator dR = (Ctrl - PrevControlRot).GetNormalized();
+	PrevControlRot = Ctrl;
+	const float YawRate = dR.Yaw / Dt, PitchRate = dR.Pitch / Dt;
+	const FRotator LagTarget(FMath::Clamp(-PitchRate * 0.012f, -3.f, 3.f), FMath::Clamp(-YawRate * 0.014f, -4.f, 4.f),
+		FMath::Clamp(-YawRate * 0.008f, -3.f, 3.f));
+	ViewLag = FMath::RInterpTo(ViewLag, LagTarget * Free, Dt, 9.f);
+
+	// --- Passo: balanco da arma e da camera (andar ~1,5 Hz, trote ~2,2 Hz, correr ~3 Hz), inclina de lado ---
+	const FVector LocalVel = GetActorTransform().InverseTransformVectorNoScale(GetVelocity());
+	const float Speed = GetCharacterMovement()->IsMovingOnGround() ? GetVelocity().Size2D() : 0.f;
+	const float Amp = FMath::Clamp(Speed / 300.f, 0.f, 1.4f);
+	BobPhase = FMath::Fmod(BobPhase + Dt * 2.f * PI * (1.f + Speed / 250.f), 2.f * PI);
+	ViewBob = FVector(0.f, 0.9f * Amp * FMath::Sin(BobPhase), -0.6f * Amp * FMath::Abs(FMath::Sin(BobPhase))) * Free;
+	const FVector CamRight = FRotationMatrix(FRotator(0.f, Ctrl.Yaw, 0.f)).GetUnitAxis(EAxis::Y);
+	StrafeRoll = FMath::FInterpTo(StrafeRoll, FMath::Clamp(FVector::DotProduct(GetVelocity(), CamRight) / 300.f, -1.f, 1.f) * 1.5f, Dt, 6.f);
+	CamBob = FRotator(0.5f * Amp * FMath::Sin(2.f * BobPhase), 0.f, 0.35f * Amp * FMath::Sin(BobPhase) + StrafeRoll) * (1.f - 0.6f * A);
+
+	// --- Aterrissagem: a camera afunda e volta (mola) ---
+	LandDipVel += (-LandDip * 120.f - LandDipVel * 18.f) * Dt;
+	LandDip += LandDipVel * Dt;
 
 	// Rosto na coronha: a camera vai ao olho direito; o foco fecha o campo de visao.
-	Camera->SetRelativeLocation(AimEyeOffset * A);
-	Camera->SetFieldOfView(FMath::Lerp(FPFieldOfView, AimFieldOfView, A));
+	Camera->SetRelativeLocation(AimEyeOffset * A + FVector(0.f, 0.f, LandDip));
+	const float BaseFov = CurrentWeapon == EEAWWeapon::Mosquete ? FPFieldOfView : FPFieldOfView;
+	Camera->SetFieldOfView(FMath::Lerp(BaseFov, AimFieldOfView, A));
 
 	// Balanco: respiracao + cansaco do braco (cresce segurando a mira) + andar.
 	AimHoldTime = (S == EFirearmState::Aiming) ? AimHoldTime + Dt : 0.f;
 	const float T = GetWorld()->GetTimeSeconds();
 	const float Moving = FMath::Min(1.f, GetVelocity().Size2D() / WalkSpeed);
-	const float Amp = (0.35f + FMath::Min(1.2f, 0.08f * AimHoldTime) + 0.8f * Moving) * A;
+	const float SwayAmp = (0.35f + FMath::Min(1.2f, 0.08f * AimHoldTime) + 0.8f * Moving) * A;
 	SwayRot = FRotator(
-		Amp * (0.7f * FMath::PerlinNoise1D(T * 0.55f + 20.f) + 0.3f * FMath::Sin(2.f * PI * 0.25f * T)),
-		Amp * FMath::PerlinNoise1D(T * 0.45f), 0.f);
-	// Os bracos e a arma giram em volta do olho (a linha do cano continua passando pelo olho).
+		SwayAmp * (0.7f * FMath::PerlinNoise1D(T * 0.55f + 20.f) + 0.3f * FMath::Sin(2.f * PI * 0.25f * T)),
+		SwayAmp * FMath::PerlinNoise1D(T * 0.45f), 0.f);
+	// Os bracos e a arma giram em volta do olho (a linha do cano continua passando pelo olho);
+	// por cima, o atraso do giro e o balanco do passo.
 	const FVector Eye = AimEyeOffset * A;
-	FirstPersonMesh->SetRelativeTransform(FPBase * FTransform(-Eye) * FTransform(SwayRot) * FTransform(Eye));
+	FirstPersonMesh->SetRelativeTransform(FPBase * FTransform(ViewLag, ViewBob) * FTransform(-Eye) * FTransform(SwayRot) * FTransform(Eye));
 
 	// Coice: a camera sobe em ~0,1 s.
 	if (!RecoilPending.IsNearlyZero(0.01f) && Controller)
@@ -1440,4 +1577,108 @@ void AEAWCharacter::ReceiveBullet(const FVector& Location, const FVector& Dir, F
 			GetMesh()->AddImpulseAtLocation(D * Firearm->Config.BallMassKg * SpeedMs * 100.f * 3.f, Location, Bone);
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Giro do corpo: a camera gira na hora; o corpo acompanha com velocidade propria.
+// Parado e sem lutar, os pes so viram quando a mira passa de TurnInPlaceAngle (o tronco torce ate la,
+// ver EAWAnimInstance); andando, lutando ou mirando, o corpo segue a mira a 540 graus/s.
+// ---------------------------------------------------------------------------
+
+void AEAWCharacter::UpdateBodyTurn(float Dt)
+{
+	UCharacterMovementComponent* Move = GetCharacterMovement();
+	if (!Move || !Controller || !Wounds->CanFight())
+	{
+		if (Move) Move->bUseControllerDesiredRotation = false;
+		return;
+	}
+	const float Delta = FRotator::NormalizeAxis(GetControlRotation().Yaw - GetActorRotation().Yaw);
+	const bool bMoving = GetVelocity().Size2D() > 20.f;
+	const bool bBusy = Combat->GetState() != EMeleeState::Idle
+		|| (CurrentWeapon == EEAWWeapon::Mosquete && Firearm->GetState() != EFirearmState::Lowered && Firearm->GetState() != EFirearmState::Reloading);
+	if (!bMoving && !bBusy)
+	{
+		if (FMath::Abs(Delta) > TurnInPlaceAngle) bTurnInPlace = true;
+		else if (FMath::Abs(Delta) < 4.f) bTurnInPlace = false;
+	}
+	else
+	{
+		bTurnInPlace = false;
+	}
+	const bool bFollow = bMoving || bBusy || bTurnInPlace;
+	Move->bUseControllerDesiredRotation = bFollow;
+	// Virar no lugar e mais calmo (passinhos); andando/lutando, rapido.
+	Move->RotationRate = FRotator(0.f, bTurnInPlace ? 320.f : 540.f, 0.f);
+}
+
+void AEAWCharacter::Landed(const FHitResult& Hit)
+{
+	Super::Landed(Hit);
+	// Aterrissagem pesada: camera afunda proporcional a velocidade de queda (mola em UpdateFirearmView).
+	const float Fall = -GetCharacterMovement()->Velocity.Z;
+	LandDipVel -= FMath::Clamp(Fall * 0.12f, 0.f, 90.f);
+	AddTrauma(FMath::Clamp((Fall - 300.f) / 900.f, 0.f, 0.5f));
+}
+
+// ---------------------------------------------------------------------------
+// Configuracao de combate de cada arma (valores iniciais de teste; ajustar jogando)
+// ---------------------------------------------------------------------------
+
+void AEAWCharacter::ApplyWeaponCombatConfig()
+{
+	FMeleeWeaponConfig C;   // comeca com os valores do sabre
+	auto Scale = [&C](EAttackDirection Dir, float Time, float Damage, float Stamina)
+	{
+		if (FMeleeAttackSpec* S = C.Attacks.Find(Dir))
+		{
+			S->Windup *= Time; S->ComboWindup *= Time; S->RiposteWindup *= Time; S->Release *= Time; S->Recovery *= Time;
+			S->BaseDamage = Damage; S->StaminaCost = Stamina;
+		}
+	};
+	Combat->GripSocket = TEXT("weapon_r");
+	Combat->TipSocket = TEXT("weapon_r_tip");
+	Combat->AnimBladeStart = 7.5f;
+	Combat->AnimBladeLength = 0.f;
+	switch (CurrentWeapon)
+	{
+	case EEAWWeapon::Faca:
+		// Faca: rapida, curta (20 cm), fere menos no corte e muito na estocada.
+		C.WeaponName = TEXT("Faca");
+		Scale(EAttackDirection::SlashLeft, 0.7f, 28.f, 7.f);
+		Scale(EAttackDirection::SlashRight, 0.7f, 28.f, 7.f);
+		Scale(EAttackDirection::Overhead, 0.75f, 32.f, 8.f);
+		Scale(EAttackDirection::Stab, 0.7f, 48.f, 7.f);
+		C.ParryWindow = 0.26f;
+		Combat->AnimBladeStart = 2.f;
+		Combat->AnimBladeLength = 20.f;
+		break;
+	case EEAWWeapon::Machado:
+		// Machado de sapador: lento e pesado; o que corta e a cabeca (ultimos 16 cm do cabo de 70 cm).
+		C.WeaponName = TEXT("Machado");
+		Scale(EAttackDirection::SlashLeft, 1.2f, 55.f, 14.f);
+		Scale(EAttackDirection::SlashRight, 1.2f, 55.f, 14.f);
+		Scale(EAttackDirection::Overhead, 1.2f, 72.f, 16.f);
+		Scale(EAttackDirection::Stab, 1.1f, 30.f, 10.f);
+		C.StunWhenParried = 0.7f;
+		Combat->AnimBladeStart = 46.f;
+		Combat->AnimBladeLength = 18.f;
+		break;
+	case EEAWWeapon::Mosquete:
+		// Mosquete com baioneta (tecla X): coronhada atordoa, estocadas tem alcance de ~1,9 e ~2,1 m.
+		C.WeaponName = TEXT("Mosquete");
+		Scale(EAttackDirection::SlashLeft, 1.25f, 38.f, 14.f);    // coronhada
+		Scale(EAttackDirection::SlashRight, 1.25f, 38.f, 14.f);
+		Scale(EAttackDirection::Overhead, 1.25f, 62.f, 18.f);     // estocada longa
+		Scale(EAttackDirection::Stab, 1.15f, 55.f, 12.f);         // estocada
+		C.StunWhenParried = 0.65f;
+		C.ParryWindow = 0.32f;
+		Combat->GripSocket = TEXT("arma_boca");
+		Combat->TipSocket = TEXT("arma_ponta");
+		Combat->AnimBladeStart = 0.f;
+		break;
+	default:
+		break;
+	}
+	Combat->DefaultConfig = C;
 }

@@ -47,18 +47,24 @@ public:
 	UMeleeCombatComponent* GetCombat() const { return Combat; }
 	UWoundComponent* GetWounds() const { return Wounds; }
 
-	/** Velocidades iguais as das animacoes (senao o pe escorrega). */
+	/** Trote normal (3,0 m/s; antes 1,4 - lento demais). As animacoes de trote foram feitas nessas velocidades. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movimento")
-	float WalkSpeed = 140.f;
+	float WalkSpeed = 300.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movimento")
-	float SprintSpeed = 400.f;
+	float SprintSpeed = 500.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movimento")
-	float BackSpeedScale = 100.f / 140.f;
+	float BackSpeedScale = 0.65f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movimento")
-	float SideSpeedScale = 85.f / 140.f;
+	float SideSpeedScale = 0.75f;
+
+	/** Parado, o corpo so vira os pes quando a mira passa deste angulo (ate la o tronco torce). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movimento")
+	float TurnInPlaceAngle = 70.f;
+
+	virtual void Landed(const FHitResult& Hit) override;
 
 	/** Mostra as hitboxes (cabeca, pescoco, tronco, bracos, pernas). Tecla H. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
@@ -250,6 +256,8 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Componentes") USkeletalMeshComponent* WeaponFP;
 	UPROPERTY(EditAnywhere, Category = "Armas") class USkeletalMesh* MeshMosquete = nullptr;
 	UPROPERTY(EditAnywhere, Category = "Armas") class USkeletalMesh* MeshSabre = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Armas") class USkeletalMesh* MeshFaca = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Armas") class USkeletalMesh* MeshMachado = nullptr;
 
 	UPROPERTY(ReplicatedUsing = OnRep_Weapon) EEAWWeapon CurrentWeapon = EEAWWeapon::Sabre;
 	UPROPERTY(ReplicatedUsing = OnRep_Weapon) bool bBayonet = false;
@@ -272,6 +280,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Animacao|Mosquete") class UAnimSequence* AnimMTiroFP = nullptr;
 	UPROPERTY(EditAnywhere, Category = "Animacao|Mosquete") class UAnimSequence* AnimMBaixarFP = nullptr;
 	UPROPERTY(EditAnywhere, Category = "Animacao|Mosquete") class UAnimSequence* AnimMRecargaFP = nullptr;
+	// Combate com o mosquete (tecla X): coronhada, estocada, estocada longa, aparos, bloqueado, finta (+ 1a pessoa).
+	UPROPERTY() class UAnimSequence* AnimMCoronhada = nullptr;      UPROPERTY() class UAnimSequence* AnimMCoronhadaFP = nullptr;
+	UPROPERTY() class UAnimSequence* AnimMEstocada = nullptr;       UPROPERTY() class UAnimSequence* AnimMEstocadaFP = nullptr;
+	UPROPERTY() class UAnimSequence* AnimMEstocadaLonga = nullptr;  UPROPERTY() class UAnimSequence* AnimMEstocadaLongaFP = nullptr;
+	UPROPERTY() class UAnimSequence* AnimMAparoDir = nullptr;       UPROPERTY() class UAnimSequence* AnimMAparoDirFP = nullptr;
+	UPROPERTY() class UAnimSequence* AnimMAparoEsq = nullptr;       UPROPERTY() class UAnimSequence* AnimMAparoEsqFP = nullptr;
+	UPROPERTY() class UAnimSequence* AnimMBloqueado = nullptr;      UPROPERTY() class UAnimSequence* AnimMBloqueadoFP = nullptr;
+	UPROPERTY() class UAnimSequence* AnimMFinta = nullptr;          UPROPERTY() class UAnimSequence* AnimMFintaFP = nullptr;
 
 	UFUNCTION() void HandleFirearmState(EFirearmState NewState, uint8 Stage);
 
@@ -286,14 +302,33 @@ protected:
 	FRotator RecoilPending = FRotator::ZeroRotator;
 	void UpdateFirearmView(float DeltaSeconds);
 
+	// ---------- Giro do corpo e camera viva (medidos no video do Chivalry) ----------
+	void UpdateBodyTurn(float DeltaSeconds);
+	bool bTurnInPlace = false;
+	FRotator PrevControlRot = FRotator::ZeroRotator;
+	FRotator ViewLag = FRotator::ZeroRotator;   // arma atrasa o giro da camera (~1-2 graus a 100 graus/s)
+	FRotator CamBob = FRotator::ZeroRotator;    // balanco do passo e inclinacao de lado
+	FVector ViewBob = FVector::ZeroVector;
+	float BobPhase = 0.f;
+	float StrafeRoll = 0.f;
+	float LandDip = 0.f;
+	float LandDipVel = 0.f;
+	float AutoWalkTime = 0.f;
+
 	void InputAimReleased();
 	void InputReload();
 	void InputToggleMelee();
 	void InputWeapon1();
 	void InputWeapon2();
+	void InputWeapon3();
+	void InputWeapon4();
 	UFUNCTION(Server, Reliable) void ServerEquip(EEAWWeapon NewWeapon);
 	UFUNCTION(Server, Reliable) void ServerSetBayonet(bool bNew);
 	bool UsingMusketFire() const { return CurrentWeapon == EEAWWeapon::Mosquete && !bBayonet; }
+	/** Botoes de corpo a corpo valem para sabre, faca, machado e mosquete no modo combate (X). */
+	bool UsesMeleeInput() const { return CurrentWeapon != EEAWWeapon::Mosquete || bBayonet; }
+	/** Tempos, dano e lamina de cada arma (sabre, faca, machado, mosquete com baioneta/coronha). */
+	void ApplyWeaponCombatConfig();
 
 	EBodyRegion LastHitRegion = EBodyRegion::None;
 	FVector LastHitLocation = FVector::ZeroVector;

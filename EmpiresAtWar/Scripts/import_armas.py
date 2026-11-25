@@ -7,7 +7,7 @@ import unreal
 
 PASTA_FBX = r"C:\Users\allys\Desktop\Projeto\game\Modelos\Export"
 DEST = "/Game/Armas"
-ARMAS = ["SK_Arma_Sabre", "SK_Arma_Mosquete"]
+ARMAS = ["SK_Arma_Sabre", "SK_Arma_Mosquete", "SK_Arma_Faca", "SK_Arma_Machado"]
 lib = unreal.EditorAssetLibrary
 
 if lib.does_directory_exist(DEST):

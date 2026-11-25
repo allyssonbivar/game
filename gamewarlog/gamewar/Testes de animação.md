@@ -137,3 +137,15 @@ Capturas a cada 0,2–0,3 s com `-EAWDuelo`; cortes forçados com `-EAWTesteCort
 | Corpo voando ao ser tocado | ✖ (bug #39) → ✔ |
 | `-EAWSemSangue` | ✔ morte sem corte nem sangue |
 | Não visto ainda | Tela vermelha (só aparece no seu soldado em 1ª pessoa); jato do coto de perto |
+
+## Movimento, tiro e armas (2026-11-25)
+| Item | Resultado |
+|---|---|
+| Trote 1ª pessoa (−EAWAutoAndar) | ✔ 2,85 m/s medido; arma balança no passo; inclina <1° de lado (✖ antes: imagem tombava, bug #49) |
+| Bots vindo de 5–8 m | ✔ trotam e chegam em <1 s, de frente um para o outro |
+| Bala a 10 m | ✖ passava (bug #48) → ✔ acerto no braço a 399 m/s (2.190 J) |
+| Clarão, coice, fumaça | ✔ (fumaça precisava de VertexInterpolator, bug #45) |
+| Duelo de baioneta | ✔ coronhada, aparos com mosquetes cruzados, estocada com sangue |
+| Faca × machado | ✖ machado flutuando (bug #50) → ✔ na mão |
+| Combate do mosquete em 1ª pessoa | ✔ estocadas à frente; coronhada ajustada só para a 1ª pessoa (preparação 25 cm à frente, golpe 18 cm abaixo) |
+| Não visto ainda | Recarga completa de 15 s em jogo (só etapas iniciais), ferida de bala de perto |

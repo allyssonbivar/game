@@ -76,6 +76,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combate|Animacao")
 	float AnimBladeStart = 7.5f;
 
+	/** Comprimento da parte que corta (cm). 0 = ate o socket da ponta (sabre/mosquete); faca e machado usam valores curtos. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combate|Animacao")
+	float AnimBladeLength = 0.f;
+
 	UFUNCTION(BlueprintPure, Category = "Combate")
 	float GetStateDuration() const { return Rep.Duration; }
 

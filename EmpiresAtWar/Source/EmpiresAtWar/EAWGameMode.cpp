@@ -94,7 +94,10 @@ void AEAWGameMode::SetupDuel(APlayerController* Viewer)
 	for (int32 i = 0; i < 2; ++i)
 	{
 		const float Side = i == 0 ? -1.f : 1.f;
-		const FVector Loc = Center + FVector(0.f, Side * 110.f, 0.f);
+		float Half = 110.f;
+		FParse::Value(FCommandLine::Get(), TEXT("EAWDueloDist="), Half);   // teste: comecam longe e vem trotando
+		Half = FMath::Max(110.f, Half * 0.5f);
+		const FVector Loc = Center + FVector(0.f, Side * Half, 0.f);
 		const FRotator Rot = (Center - Loc).GetSafeNormal2D().Rotation();
 		if (AEAWCharacter* Bot = GetWorld()->SpawnActor<AEAWCharacter>(AEAWCharacter::StaticClass(), Loc, Rot, Params))
 		{

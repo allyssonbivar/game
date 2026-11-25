@@ -6,6 +6,8 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 AEAWBallistics::AEAWBallistics()
 {
@@ -42,6 +44,27 @@ void AEAWBallistics::Fire(UWorld* World, const FVector& Origin, const FVector& V
 		P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		Sim = World->SpawnActor<AEAWBallistics>(AEAWBallistics::StaticClass(), FTransform::Identity, P);
 	}
+	// Diagnostico (-EAWDiagBala): rastreio de teste ate o peito de cada soldado.
+	if (FParse::Param(FCommandLine::Get(), TEXT("EAWDiagBala")))
+	{
+		for (TActorIterator<AEAWCharacter> It(World); It; ++It)
+		{
+			if (*It == Shooter) continue;
+			USkeletalMeshComponent* M = It->GetMesh();
+			int32 Valid = 0;
+			for (FBodyInstance* Bi : M->Bodies) Valid += Bi && Bi->IsValidBodyInstance();
+			const FVector Target = M->GetSocketLocation(TEXT("spine_02"));
+			FHitResult H;
+			FCollisionQueryParams Q2; Q2.AddIgnoredActor(Shooter); Q2.AddIgnoredComponent(It->GetCapsuleComponent());
+			FCollisionObjectQueryParams O2; O2.AddObjectTypesToQuery(ECC_Pawn); O2.AddObjectTypesToQuery(ECC_PhysicsBody); O2.AddObjectTypesToQuery(ECC_WorldDynamic);
+			const bool bHit = World->LineTraceSingleByObjectType(H, Origin, Target + (Target - Origin).GetSafeNormal() * 50.f, O2, Q2);
+			FHitResult H2;
+			const bool bComp = M->LineTraceComponent(H2, Origin, Target + (Target - Origin).GetSafeNormal() * 50.f, FCollisionQueryParams());
+			UE_LOG(LogEAWCombat, Log, TEXT("diag bala: %s malha colisao=%d tipo=%d corpos=%d/%d | rastreio: %d %s osso=%s | so a malha: %d osso=%s"),
+				*It->GetName(), (int32)M->GetCollisionEnabled(), (int32)M->GetCollisionObjectType(), Valid, M->Bodies.Num(),
+				bHit, *GetNameSafe(H.GetComponent()), *H.BoneName.ToString(), bComp, *H2.BoneName.ToString());
+		}
+	}
 	const float R = Config.BallDiameterCm * 0.005f;   // raio em m
 	FBall B;
 	B.Pos = Origin;
@@ -73,27 +96,34 @@ bool AEAWBallistics::Step(FBall& B, float Dt)
 	{
 		Q.AddIgnoredActor(B.Shooter.Get());
 	}
-	TArray<FHitResult> Hits;
-	GetWorld()->LineTraceMultiByObjectType(Hits, B.Pos, NewPos, Obj, Q);
-	Hits.Sort([](const FHitResult& A, const FHitResult& C) { return A.Distance < C.Distance; });
-	for (const FHitResult& H : Hits)
+	// Rastreio por tipo de objeto para no primeiro que encontra: a capsula de movimento do soldado esconde
+	// os corpos do esqueleto que estao dentro dela (bug #48). Ignora o que nao conta e rastreia de novo.
+	for (int32 Try = 0; Try < 8; ++Try)
 	{
+		FHitResult H;
+		if (!GetWorld()->LineTraceSingleByObjectType(H, B.Pos, NewPos, Obj, Q))
+		{
+			break;
+		}
 		UPrimitiveComponent* C = H.GetComponent();
 		if (!C)
 		{
-			continue;
+			break;
 		}
+		bool bSkip = false;
 		if (AEAWCharacter* Soldier = Cast<AEAWCharacter>(H.GetActor()))
 		{
 			// So os corpos fisicos do esqueleto contam (a capsula de movimento e as hitboxes do corpo a corpo nao).
-			if (C != Soldier->GetMesh() || H.BoneName == NAME_None)
-			{
-				continue;
-			}
+			bSkip = C != Soldier->GetMesh() || H.BoneName == NAME_None;
 		}
 		else if (C->IsA<USkeletalMeshComponent>() && C->GetCollisionObjectType() == ECC_PhysicsBody)
 		{
-			continue;   // pecas soltas do desmembramento: deixa passar
+			bSkip = true;   // pecas soltas do desmembramento: deixa passar
+		}
+		if (bSkip)
+		{
+			Q.AddIgnoredComponent(C);
+			continue;
 		}
 		// Velocidade no ponto do impacto (interpolada no passo).
 		const float Alpha = (H.Location - B.Pos).Size() / FMath::Max(1.f, (NewPos - B.Pos).Size());

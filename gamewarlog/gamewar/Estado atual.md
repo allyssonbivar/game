@@ -125,3 +125,21 @@ Todas começam e terminam na guarda. Golpes aceleram até o impacto (ease-in) e 
 - Cabo **na diagonal da palma (30°)** — `weapon_r/l` girados; lâmina em repouso = (−0,49, −0,87, 0).
 - Dedos (mão direita, eixo X positivo = fechar): indicador 62/85/55°, médio 66/84/50°, anelar 72/84/48°, mínimo 88/90/55°;
   polegar sobre o indicador (`thumb_01` Euler −60/15/30°, `02` 60°, `03` 42°). Mão esquerda relaxada.
+
+## Movimento e giro "profissional" (2026-11-25, referência medida no Chivalry)
+- Medido no vídeo: giro em luta 100–130°/s; câmera balança ~1,5 Hz (andar) e ~3,6 Hz (correr), 1–1,8°; a arma atrasa ~1–2° a 100°/s (~70 ms).
+- **Velocidades:** trote 3,0 m/s (trás 1,95, lado 2,25), corrida 5,0 m/s; arranque/freada ~0,15 s. Animações `AS_Trote_*` (ciclo 0,633 s, 4 direções); corrida só para a frente.
+- **Giro do corpo:** a câmera gira na hora; o corpo segue a 540°/s andando/lutando; parado, os pés só viram depois de 70° (320°/s, com passinhos de lado) e até lá o tronco e a arma torcem na cintura (`EAWAnimInstance`).
+- **1ª pessoa viva:** arma atrasa o giro, balanço do passo (arma e câmera), inclinação de 1,5° andando de lado, câmera afunda ao aterrissar. Mirando com o mosquete, quase tudo isso some (sobra o balanço da mira).
+- Andar usa a direção da câmera (não a do corpo).
+
+## Armas (2026-11-25)
+- Teclas: **1 mosquete, 2 sabre, 3 faca, 4 machado**. **X** alterna o mosquete entre tiro e combate.
+- **Mosquete no combate (X):** botão esquerdo = coronhada (atordoa, dano 38), E/roda cima = estocada longa (alcance ~2,1 m, mão esquerda solta, dano 62), C/roda baixo = estocada (~1,9 m, 55), direito = aparo (à direita ou à esquerda conforme o golpe do inimigo), Q = finta. Animações a partir da imagem "Exercice de la baïonnette". A coronhada fere com a coronha; as estocadas com a baioneta.
+- **Faca** (lâmina 20 cm, golpes 30% mais rápidos) e **machado de sapador** (cabo 70 cm, corta com a cabeça, 20% mais lento, dano alto) usam as animações de uma mão do sabre com tempos/dano próprios.
+- **Tiro testado em jogo:** clarão, coice, fumaça translúcida (~6 s), bala acerta e fere (bug #48).
+
+## Modos de teste novos
+`-EAWAutoAndar` (anda e gira sozinho), `-EAWDueloDist=500` (bots começam longe), `-EAWArmaBot=Mosquete|Faca|Machado|Misto`,
+`-EAWArma=Sabre|Faca|Machado` (jogador), `-EAWBaioneta` (começa no combate do mosquete), `-EAWRecargaRapida` (3 s),
+`-EAWCampo` (chão de 600 m), `-EAWDiagBala` (diagnóstico do rastreio da bala), `-EAWAutoTiro`, `-EAWBotDist=N`.

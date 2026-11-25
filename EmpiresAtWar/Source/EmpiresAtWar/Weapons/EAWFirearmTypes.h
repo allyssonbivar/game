@@ -9,6 +9,8 @@ enum class EEAWWeapon : uint8
 {
 	Mosquete,
 	Sabre,
+	Faca,
+	Machado,
 };
 
 /** Estado do mosquete (tiro). */

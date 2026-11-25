@@ -89,7 +89,29 @@ void UEAWAnimInstance::TickValues(float Dt, FEAWAnimFrame& Out)
 			bCombatIdle = Soldier->GetCombat() && Soldier->GetCombat()->GetState() == EMeleeState::Idle;
 		}
 	}
-	const float Speed = Local.Size2D();
+	float Speed = Local.Size2D();
+
+	// Torcao do tronco: a mira esta a frente do corpo (o corpo vira atras, ver AEAWCharacter::UpdateBodyTurn).
+	float YawRate = 0.f;
+	if (Pawn)
+	{
+		const float ActorYaw = Pawn->GetActorRotation().Yaw;
+		const float AimWorldYaw = Pawn->Controller ? Pawn->GetControlRotation().Yaw : Pawn->GetBaseAimRotation().Yaw;
+		AimYaw = FMath::Clamp(FRotator::NormalizeAxis(AimWorldYaw - ActorYaw), -90.f, 90.f);
+		if (bHavePrevYaw && Dt > 0.f)
+		{
+			YawRate = FRotator::NormalizeAxis(ActorYaw - PrevActorYaw) / Dt;
+		}
+		PrevActorYaw = ActorYaw;
+		bHavePrevYaw = true;
+	}
+	// Virar no lugar: passinhos de lado (a velocidade do giro vira um passo virtual), em vez de patinar.
+	if (Speed < 20.f && FMath::Abs(YawRate) > 40.f)
+	{
+		const float Step = FMath::Min(110.f, FMath::Abs(YawRate) * 0.45f);
+		Local = FVector(0.f, YawRate > 0.f ? Step : -Step, 0.f);
+		Speed = Step;
+	}
 
 	// Pesos das 4 direcoes (frente, tras, esquerda, direita).
 	if (Speed > 5.f)
@@ -109,7 +131,8 @@ void UEAWAnimInstance::TickValues(float Dt, FEAWAnimFrame& Out)
 	RunPhase = FMath::Fmod(RunPhase + Dt * (Speed / SpeedRun) / RunCycle, 1.f);
 
 	LocoWeight = FMath::FInterpTo(LocoWeight, FMath::Clamp(Speed / 40.f, 0.f, 1.f), Dt, 10.f);
-	RunWeight = FMath::FInterpTo(RunWeight, FMath::Clamp((Speed - 170.f) / 130.f, 0.f, 1.f), Dt, 8.f);
+	// Correr so para a frente (de lado e para tras usa o trote daquela direcao).
+	RunWeight = FMath::FInterpTo(RunWeight, FMath::Clamp((Local.X - 330.f) / 120.f, 0.f, 1.f), Dt, 8.f);
 	UpperRunWeight = FMath::FInterpTo(UpperRunWeight, (bCombatIdle && bAllowUpperRun) ? RunWeight : 0.f, Dt, 12.f);
 
 	Out.Combat = Seg.Anim;
@@ -127,6 +150,7 @@ void UEAWAnimInstance::TickValues(float Dt, FEAWAnimFrame& Out)
 	Out.LocoWeight = LocoWeight;
 	Out.RunWeight = RunWeight;
 	Out.UpperRunWeight = UpperRunWeight;
+	Out.AimYaw = AimYaw;
 }
 
 // ---------------------------------------------------------------------------
@@ -230,5 +254,44 @@ bool FEAWAnimProxy::Evaluate(FPoseContext& Output)
 		Out[I] = T;
 	}
 	Out.NormalizeRotations();
+
+	// Torcao na cintura: tronco, bracos e a arma longa giram em volta do spine_01 (as pernas ficam).
+	if (FMath::Abs(Data.AimYaw) > 0.5f)
+	{
+		const FReferenceSkeleton& Ref = Bones.GetReferenceSkeleton();
+		const FCompactPoseBoneIndex Spine = Bones.MakeCompactPoseIndex(FMeshPoseBoneIndex(Ref.FindBoneIndex(TEXT("spine_01"))));
+		const int32 ArmaMesh = Ref.FindBoneIndex(TEXT("arma"));
+		if (Spine.GetInt() != INDEX_NONE)
+		{
+			FCSPose<FCompactPose> CS;
+			CS.InitPose(Out);
+			const FQuat Qz(FVector::UpVector, FMath::DegreesToRadians(Data.AimYaw));
+			const FTransform SpineCS = CS.GetComponentSpaceTransform(Spine);
+			const FCompactPoseBoneIndex SpineParent = Out.GetParentBoneIndex(Spine);
+			const FTransform ParentCS = CS.GetComponentSpaceTransform(SpineParent);
+			FTransform NewSpine = SpineCS;
+			NewSpine.SetRotation(Qz * SpineCS.GetRotation());
+			FTransform ArmaLocal;
+			FCompactPoseBoneIndex Arma(INDEX_NONE);
+			if (ArmaMesh != INDEX_NONE)
+			{
+				Arma = Bones.MakeCompactPoseIndex(FMeshPoseBoneIndex(ArmaMesh));
+			}
+			if (Arma.GetInt() != INDEX_NONE)
+			{
+				const FTransform ArmaCS = CS.GetComponentSpaceTransform(Arma);
+				const FVector P = SpineCS.GetLocation();
+				FTransform NewArma = ArmaCS;
+				NewArma.SetLocation(P + Qz.RotateVector(ArmaCS.GetLocation() - P));
+				NewArma.SetRotation(Qz * ArmaCS.GetRotation());
+				ArmaLocal = NewArma.GetRelativeTransform(CS.GetComponentSpaceTransform(Out.GetParentBoneIndex(Arma)));
+			}
+			Out[Spine] = NewSpine.GetRelativeTransform(ParentCS);
+			if (Arma.GetInt() != INDEX_NONE)
+			{
+				Out[Arma] = ArmaLocal;
+			}
+		}
+	}
 	return true;
 }

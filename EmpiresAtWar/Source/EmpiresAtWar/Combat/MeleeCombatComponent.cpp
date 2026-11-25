@@ -439,8 +439,9 @@ void UMeleeCombatComponent::GetBladePoints(TArray<FVector>& OutPoints) const
 	if (AnimMesh && AnimMesh->DoesSocketExist(GripSocket) && AnimMesh->DoesSocketExist(TipSocket))
 	{
 		const FVector Grip = AnimMesh->GetSocketLocation(GripSocket);
-		const FVector Tip = AnimMesh->GetSocketLocation(TipSocket);
-		const FVector Start = Grip + (Tip - Grip).GetSafeNormal() * AnimBladeStart;
+		const FVector Dir = (AnimMesh->GetSocketLocation(TipSocket) - Grip).GetSafeNormal();
+		const FVector Start = Grip + Dir * AnimBladeStart;
+		const FVector Tip = AnimBladeLength > 0.f ? Start + Dir * AnimBladeLength : AnimMesh->GetSocketLocation(TipSocket);
 		for (int32 i = 0; i < Samples; ++i)
 		{
 			OutPoints.Add(FMath::Lerp(Start, Tip, static_cast<float>(i) / static_cast<float>(Samples - 1)));

@@ -252,7 +252,7 @@ void UEAWFirearmComponent::HandleBallHit(const FHitResult& Hit, const FVector& V
 	}
 	else
 	{
-		UE_LOG(LogEAWCombat, Verbose, TEXT("bala acertou %s a %.0f m/s"), *GetNameSafe(Hit.GetActor()), Speed);
+		UE_LOG(LogEAWCombat, Log, TEXT("bala acertou o cenario (%s, %s) a %.0f m/s em %s"), *GetNameSafe(Hit.GetActor()), *GetNameSafe(Hit.GetComponent()), Speed, *Hit.ImpactPoint.ToString());
 		MulticastBallImpact(Hit.ImpactPoint, Hit.ImpactNormal, nullptr, NAME_None, Energy, EBodyRegion::None);
 	}
 }

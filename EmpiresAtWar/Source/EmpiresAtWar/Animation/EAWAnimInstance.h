@@ -28,6 +28,7 @@ struct FEAWAnimFrame
 	float LocoWeight = 0.f;      // 0 parado, 1 andando: pernas seguem o movimento
 	float RunWeight = 0.f;       // andar -> correr
 	float UpperRunWeight = 0.f;  // correndo sem lutar: tronco tambem corre (sabre no ombro)
+	float AimYaw = 0.f;          // mira - corpo (graus): o tronco e a arma torcem na cintura
 };
 
 struct FEAWAnimProxy : public FAnimInstanceProxy
@@ -87,6 +88,9 @@ private:
 	float WalkPhase = 0.f, RunPhase = 0.f;
 	float LocoWeight = 0.f, RunWeight = 0.f, UpperRunWeight = 0.f;
 	float DirW[4] = { 1.f, 0.f, 0.f, 0.f };
+	float AimYaw = 0.f;
+	float PrevActorYaw = 0.f;
+	bool bHavePrevYaw = false;
 
 	float SegmentTime(const FEAWSegment& S, float Elapsed) const;
 };

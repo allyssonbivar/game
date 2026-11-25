@@ -14,7 +14,7 @@ atualizado: 2026-11-25
 - [ ] Reduzir a torção do pulso no golpe de cima em 1ª pessoa (79°)
 - [ ] Misturar animações (blend) para combos e golpe bloqueado sem "pulo" de pose — AnimBlueprint/montagens
 - [ ] Mira vertical (aim offset): o golpe acompanhar o olhar para cima/baixo
-- [ ] Faca, machado, lança, baioneta, pistola, rifle (cada um com empunhadura própria)
+- [~] Armas (2026-11-25): mosquete (tiro + baioneta/coronha), faca e machado feitos; faltam lança e pistola
 - [ ] Sistema de pegar/largar/trocar armas (pickup) no Unreal + animações de pegar e trocar (referência: troca ~0,5 s, "desce/sobe", aviso no centro — ver [[Chivalry - vídeo 1]])
 - [ ] Animações de pulo (impulso, no ar com braços abertos, aterrissagem) e defesa (lâmina na frente do rosto)
 - [ ] **Decidido (2026-11-24) — corpos divididos:** partem o corpo só **canhão e golpes muito fortes**; os cortes são **por ponto de impacto** (mais trabalho de arte, cada região tem seus cortes); limite de **20 partes de corpo por área**, depois somem os mais antigos. Próximo passo: definir as zonas de corte (cabeça/pescoço, peito, cintura, ombro, quadril, joelho) e começar com cintura e peito.
@@ -37,10 +37,14 @@ atualizado: 2026-11-25
 - [ ] **Qualidade "profissional"** (ver [[Chivalry - vídeo 2]]): câmera viva, inércia da arma, desfoque de movimento,
       efeitos de impacto (código) + decidir a fonte das animações (pacote profissional ou captura de movimento)
 - [ ] Testar correr (sabre no ombro) e andar de lado no jogo
-- [ ] Virar no lugar (hoje o corpo gira sem mexer os pés)
-- [ ] Braços de 1ª pessoa também balançarem com o passo
+- [x] Virar no lugar (2026-11-25): tronco torce até 70°, depois os pés viram com passinhos
+- [x] Braços de 1ª pessoa balançam com o passo e atrasam o giro (2026-11-25)
 - [ ] Corrida: reduzir os 2,4 cm de alcance da perna nos extremos da passada
 - [ ] Ferimentos (mancar) e reações de impacto
 - [ ] Farda napoleônica no personagem e LODs
 - [ ] Teste multiplayer
 - [ ] Atualizar os PDFs para 150 x 150
+- [ ] Ver a recarga completa em jogo e a ferida de bala de perto
+- [ ] Animações próprias para faca (empunhadura curta) e machado (golpe de cima pesado) — hoje usam as do sabre
+- [ ] Pegar armas do chão (pickup) e troca com "desce/sobe" (~0,5 s)
+- [ ] Desligar o desenho de depuração da lâmina (linha amarela) fora dos testes
