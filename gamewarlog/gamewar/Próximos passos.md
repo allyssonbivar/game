@@ -42,7 +42,7 @@ atualizado: 2026-11-25
 - [ ] Corrida: reduzir os 2,4 cm de alcance da perna nos extremos da passada
 - [ ] Ferimentos (mancar) e reações de impacto
 - [ ] Farda napoleônica no personagem e LODs
-- [ ] Teste multiplayer
+- [x] Teste multiplayer — 2 janelas no mesmo PC (2026-11-25). Falta: testar entre 2 PCs pela rede e com mais jogadores
 - [ ] Atualizar os PDFs para 150 x 150
 - [ ] Ver a recarga completa em jogo e a ferida de bala de perto
 - [ ] Animações próprias para faca (empunhadura curta) e machado (golpe de cima pesado) — hoje usam as do sabre

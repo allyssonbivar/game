@@ -240,6 +240,10 @@ void AEAWCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	BodyMeshBaseLocation = BodyMesh->GetRelativeLocation();
+	if (!HasAuthority() && FParse::Param(FCommandLine::Get(), TEXT("EAWCampo")))
+	{
+		AEAWGameMode::SpawnTestField(GetWorld());   // o cliente nao tem GameMode: cria o chao de teste localmente
+	}
 	Combat->SetWeaponPivot(WeaponPivot);
 	Wounds->OnWounded.AddDynamic(this, &AEAWCharacter::HandleWounded);
 	Combat->OnImpact.AddDynamic(this, &AEAWCharacter::HandleImpact);

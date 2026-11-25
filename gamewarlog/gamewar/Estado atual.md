@@ -152,3 +152,14 @@ Todas começam e terminam na guarda. Golpes aceleram até o impacto (ease-in) e 
 - Tiro: bala de 22 g / 16,5 mm a **220 m/s**, desvio 0,9° (cano curto), coice de 9°, mira mais leve (anda 75%, gira 170°/s). Teste: acerto na cabeça a 7,4 m (215 m/s, 508 J).
 - Animações (3ª e 1ª pessoa): guarda, erguer, **mira de braço esticado com o corpo de lado** (câmera vai ao olho: 5,7 cm à frente, 1,9 à direita, 2,7 acima), tiro (cano sobe 18°), baixar, **recarga de 11 s em 5 etapas com a mão esquerda** (meio-armar, cartucho na boca, escorva, cano para cima, pólvora e bala, vareta para dentro, socar 2x, vareta de volta, armar, guarda).
 - Ocupa a vaga 1 (arma de fogo) no lugar do mosquete; pode ser pega do chão (F, 3 s). `-EAWArma=Pistola` começa com ela.
+
+## Multiplayer de teste, sem bot (2026-11-25) ✔ testado com 2 janelas
+- **Sem bot automático** (`bSpawnBotOnStart = false`). A tecla **B** ainda cria um bot de treino se quiser.
+- Cada jogador nasce **2,5 m ao lado** do anterior (direita, esquerda, direita…), porque o mapa de teste tem um só PlayerStart (`SpawnDefaultPawnAtTransform` no `EAWGameMode`).
+- O chão de 600 m (`-EAWCampo`) agora é criado **em cada máquina** (servidor e cliente), no mesmo lugar (embaixo do PlayerStart), marcado com a tag `EAWCampo` para não duplicar.
+- Atalhos na pasta `EmpiresAtWar`:
+  - `Multiplayer_Servidor.bat` — abre o jogo como servidor (você joga junto). Porta **7777 UDP**.
+  - `Multiplayer_Cliente.bat [IP]` — entra no servidor (sem IP = o próprio PC, 127.0.0.1). Em outro PC: `Multiplayer_Cliente.bat 192.168.x.x` e liberar a porta 7777 UDP no firewall do servidor.
+  - `Multiplayer_2Janelas.bat` — servidor + cliente no mesmo PC.
+- No editor: Play ▸ ⋮ ▸ *Number of Players* = 2, *Net Mode* = **Play As Listen Server**.
+- Teste: o cliente entrou ("Join succeeded"), carregou os dois soldados e recebeu mosquete + sabre.

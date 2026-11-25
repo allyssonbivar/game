@@ -18,6 +18,8 @@
 #include "Misc/Paths.h"
 #include "TimerManager.h"
 #include "UnrealClient.h"
+#include "EngineUtils.h"
+#include "GameFramework/PlayerStart.h"
 
 AEAWGameMode::AEAWGameMode()
 {
@@ -25,27 +27,63 @@ AEAWGameMode::AEAWGameMode()
 	HUDClass = AEAWHUD::StaticClass();
 }
 
+void AEAWGameMode::SpawnTestField(UWorld* World)
+{
+	if (!World)
+	{
+		return;
+	}
+	for (TActorIterator<AStaticMeshActor> It(World); It; ++It)
+	{
+		if (It->ActorHasTag(TEXT("EAWCampo")))
+		{
+			return;   // ja existe nesta maquina
+		}
+	}
+	// Mesmo lugar em todas as maquinas: embaixo do primeiro PlayerStart do mapa.
+	FVector From = FVector::ZeroVector;
+	for (TActorIterator<APlayerStart> It(World); It; ++It)
+	{
+		From = It->GetActorLocation();
+		break;
+	}
+	FHitResult Hit;
+	const float FloorZ = World->LineTraceSingleByChannel(Hit, From, From - FVector(0.f, 0.f, 1000.f), ECC_Visibility) ? Hit.ImpactPoint.Z : From.Z - 100.f;
+	UStaticMesh* Plane = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
+	FActorSpawnParameters P;
+	P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	if (AStaticMeshActor* Field = World->SpawnActor<AStaticMeshActor>(FVector(From.X, From.Y, FloorZ - 0.5f), FRotator::ZeroRotator, P))
+	{
+		Field->Tags.Add(TEXT("EAWCampo"));
+		Field->SetMobility(EComponentMobility::Movable);
+		Field->GetStaticMeshComponent()->SetStaticMesh(Plane);
+		Field->SetActorScale3D(FVector(600.f, 600.f, 1.f));
+		Field->GetStaticMeshComponent()->SetCollisionProfileName(TEXT("BlockAll"));
+	}
+}
+
+APawn* AEAWGameMode::SpawnDefaultPawnAtTransform_Implementation(AController* NewPlayer, const FTransform& SpawnTransform)
+{
+	// Multiplayer: cada jogador nasce 2,5 m ao lado do anterior (o mapa de teste tem um so PlayerStart).
+	FTransform T = SpawnTransform;
+	const int32 N = SpawnCount++;
+	const float Side = (N % 2 == 0 ? 1.f : -1.f) * 250.f * ((N + 1) / 2);
+	T.AddToTranslation(T.GetRotation().GetRightVector() * Side);
+	FActorSpawnParameters Params;
+	Params.Instigator = GetInstigator();
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	return GetWorld()->SpawnActor<APawn>(GetDefaultPawnClassForController(NewPlayer), T, Params);
+}
+
 void AEAWGameMode::HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer)
 {
 	const TCHAR* Cmd = FCommandLine::Get();
 	const bool bDuel = FParse::Param(Cmd, TEXT("EAWDuelo"));
 
-	// -EAWCampo: chao de 600 x 600 m para testar tiro a distancia (o mapa de teste termina a ~5 m).
-	if (FParse::Param(Cmd, TEXT("EAWCampo")) && !bFieldSpawned)
+	// -EAWCampo: chao de 600 x 600 m (o mapa de teste termina a ~5 m). Criado em cada maquina (servidor e clientes).
+	if (FParse::Param(Cmd, TEXT("EAWCampo")))
 	{
-		bFieldSpawned = true;
-		AActor* Start = FindPlayerStart(NewPlayer);
-		const FVector From = Start ? Start->GetActorLocation() : FVector::ZeroVector;
-		FHitResult Hit;
-		const float FloorZ = GetWorld()->LineTraceSingleByChannel(Hit, From, From - FVector(0.f, 0.f, 1000.f), ECC_Visibility) ? Hit.ImpactPoint.Z : From.Z - 100.f;
-		UStaticMesh* Plane = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
-		if (AStaticMeshActor* Field = GetWorld()->SpawnActor<AStaticMeshActor>(FVector(From.X, From.Y, FloorZ - 0.5f), FRotator::ZeroRotator))
-		{
-			Field->SetMobility(EComponentMobility::Movable);
-			Field->GetStaticMeshComponent()->SetStaticMesh(Plane);
-			Field->SetActorScale3D(FVector(600.f, 600.f, 1.f));
-			Field->GetStaticMeshComponent()->SetCollisionProfileName(TEXT("BlockAll"));
-		}
+		SpawnTestField(GetWorld());
 	}
 
 	if (bDuel)

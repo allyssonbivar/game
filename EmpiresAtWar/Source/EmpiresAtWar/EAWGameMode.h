@@ -22,11 +22,17 @@ public:
 
 	/** Cria um bot automaticamente quando o primeiro jogador entra. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Prototipo")
-	bool bSpawnBotOnStart = true;
+	bool bSpawnBotOnStart = false;   // sem bot automatico (B cria um para treinar)
+
+	/** Chao de teste (-EAWCampo), criado igual em cada maquina. */
+	static void SpawnTestField(UWorld* World);
+
+	virtual APawn* SpawnDefaultPawnAtTransform_Implementation(AController* NewPlayer, const FTransform& SpawnTransform) override;
 
 private:
 	bool bSpawnedInitialBot = false;
 	bool bFieldSpawned = false;
+	int32 SpawnCount = 0;
 
 	// ---------- Modo de teste ----------
 	// -EAWDuelo     : sem jogador; dois bots em duelo e uma camera fixa de lado.
