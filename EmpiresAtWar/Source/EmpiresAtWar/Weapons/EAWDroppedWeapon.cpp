@@ -50,7 +50,8 @@ void AEAWDroppedWeapon::OnRep_Weapon()
 
 void AEAWDroppedWeapon::ApplyVisual()
 {
-	const TCHAR* Path = Weapon == EEAWWeapon::Mosquete ? TEXT("/Game/Armas/SK_Arma_Mosquete.SK_Arma_Mosquete")
+	const TCHAR* Path = Weapon == EEAWWeapon::Pistola ? TEXT("/Game/Armas/SK_Arma_Pistola.SK_Arma_Pistola")
+		: Weapon == EEAWWeapon::Mosquete ? TEXT("/Game/Armas/SK_Arma_Mosquete.SK_Arma_Mosquete")
 		: Weapon == EEAWWeapon::Faca ? TEXT("/Game/Armas/SK_Arma_Faca.SK_Arma_Faca")
 		: Weapon == EEAWWeapon::Machado ? TEXT("/Game/Armas/SK_Arma_Machado.SK_Arma_Machado")
 		: TEXT("/Game/Armas/SK_Arma_Sabre.SK_Arma_Sabre");
@@ -60,9 +61,13 @@ void AEAWDroppedWeapon::ApplyVisual()
 		return;
 	}
 	Visual->SetSkeletalMesh(Mesh);
+	if (Weapon == EEAWWeapon::Pistola)
+	{
+		Visual->HideBoneByName(TEXT("vareta"), EPhysBodyOp::PBO_None);   // a vareta da pistola so tem pose nas animacoes
+	}
 	// A malha da arma esta na pose de referencia do soldado: traz o osso da arma para a origem do ator
 	// (sem a escala 100 da raiz, ver bug #41) e centraliza a caixa de fisica na arma.
-	const FName Bone = Weapon == EEAWWeapon::Mosquete ? FName(TEXT("arma")) : FName(TEXT("weapon_r"));
+	const FName Bone = Weapon == EEAWWeapon::Mosquete ? FName(TEXT("arma")) : Weapon == EEAWWeapon::Pistola ? FName(TEXT("pistola")) : FName(TEXT("weapon_r"));
 	const FReferenceSkeleton& Ref = Mesh->GetRefSkeleton();
 	const int32 Idx = Ref.FindBoneIndex(Bone);
 	FTransform BoneCS = Idx != INDEX_NONE ? FAnimationRuntime::GetComponentSpaceTransformRefPose(Ref, Idx) : FTransform::Identity;
@@ -72,7 +77,7 @@ void AEAWDroppedWeapon::ApplyVisual()
 	VisualCenter = B.Origin;
 	Visual->SetRelativeTransform(ToBone * FTransform(-B.Origin));
 	Box->SetBoxExtent(B.BoxExtent.ComponentMax(FVector(2.f)));
-	const float Kg = Weapon == EEAWWeapon::Mosquete ? 4.6f : Weapon == EEAWWeapon::Machado ? 1.6f : Weapon == EEAWWeapon::Faca ? 0.3f : 1.1f;
+	const float Kg = Weapon == EEAWWeapon::Pistola ? 1.27f : Weapon == EEAWWeapon::Mosquete ? 4.6f : Weapon == EEAWWeapon::Machado ? 1.6f : Weapon == EEAWWeapon::Faca ? 0.3f : 1.1f;
 	Box->SetMassOverrideInKg(NAME_None, Kg, true);
 }
 

@@ -196,6 +196,16 @@ AEAWCharacter::AEAWCharacter()
 		static ConstructorHelpers::FObjectFinderOptional<USkeletalMesh> W_Faca(TEXT("/Game/Armas/SK_Arma_Faca.SK_Arma_Faca"));
 		static ConstructorHelpers::FObjectFinderOptional<USkeletalMesh> W_Machado(TEXT("/Game/Armas/SK_Arma_Machado.SK_Arma_Machado"));
 		MeshFaca = W_Faca.Get(); MeshMachado = W_Machado.Get();
+		static ConstructorHelpers::FObjectFinderOptional<USkeletalMesh> W_Pistola(TEXT("/Game/Armas/SK_Arma_Pistola.SK_Arma_Pistola"));
+		MeshPistola = W_Pistola.Get();
+#define EAW_ANIM2(Var, Name) { static ConstructorHelpers::FObjectFinderOptional<UAnimSequence> F(TEXT("/Game/Personagem/" Name "." Name)); Var = F.Get(); }
+		EAW_ANIM2(AnimPGuarda, "AS_Pistola_Guarda"); EAW_ANIM2(AnimPGuardaFP, "AS_Pistola_Guarda_FP");
+		EAW_ANIM2(AnimPErguer, "AS_Pistola_Erguer"); EAW_ANIM2(AnimPErguerFP, "AS_Pistola_Erguer_FP");
+		EAW_ANIM2(AnimPMira, "AS_Pistola_Mira"); EAW_ANIM2(AnimPMiraFP, "AS_Pistola_Mira_FP");
+		EAW_ANIM2(AnimPTiro, "AS_Pistola_Tiro"); EAW_ANIM2(AnimPTiroFP, "AS_Pistola_Tiro_FP");
+		EAW_ANIM2(AnimPBaixar, "AS_Pistola_Baixar"); EAW_ANIM2(AnimPBaixarFP, "AS_Pistola_Baixar_FP");
+		EAW_ANIM2(AnimPRecarga, "AS_Pistola_Recarga"); EAW_ANIM2(AnimPRecargaFP, "AS_Pistola_Recarga_FP");
+#undef EAW_ANIM2
 	}
 
 	// O GameMode cria o controlador do bot explicitamente; os jogadores usam PlayerController.
@@ -234,6 +244,7 @@ void AEAWCharacter::BeginPlay()
 	Wounds->OnWounded.AddDynamic(this, &AEAWCharacter::HandleWounded);
 	Combat->OnImpact.AddDynamic(this, &AEAWCharacter::HandleImpact);
 	Firearm->OnStateChanged.AddDynamic(this, &AEAWCharacter::HandleFirearmState);
+if (FParse::Param(FCommandLine::Get(), TEXT("EAWDiagBala")))	{		for (USkeletalMesh* M : { GetMesh()->SkeletalMesh, MeshSabre, MeshFaca, MeshPistola, MeshMosquete })		{			if (!M) continue;			const int32 I = M->GetRefSkeleton().FindBoneIndex(TEXT("weapon_r"));			const FTransform T = I != INDEX_NONE ? FAnimationRuntime::GetComponentSpaceTransformRefPose(M->GetRefSkeleton(), I) : FTransform::Identity;			UE_LOG(LogEAWCombat, Log, TEXT("diag ref %s weapon_r: rot=%s pos=%s escala=%s ossos=%d"), *M->GetName(), *T.Rotator().ToString(), *T.GetLocation().ToString(), *T.GetScale3D().ToString(), M->GetRefSkeleton().GetNum());		}	}
 	if (FParse::Param(FCommandLine::Get(), TEXT("EAWRecargaRapida")))
 	{
 		Firearm->Config.ReloadTime = 3.f;   // teste: varios tiros em pouco tempo
@@ -382,7 +393,7 @@ void AEAWCharacter::MoveRight(float Value)
 void AEAWCharacter::StartSprint()
 {
 	bSprinting = true;
-	if (CurrentWeapon == EEAWWeapon::Mosquete && Firearm->IsBusy())
+	if (IsFirearmWeapon(CurrentWeapon) && Firearm->IsBusy())
 	{
 		Firearm->RequestCancel();   // correr larga a mira e a recarga
 	}
@@ -523,7 +534,7 @@ void AEAWCharacter::ApplyMovementSpeed()
 	}
 	// Mosquete de 4,6 kg: no ombro anda devagar; carregando, quase parado; nunca corre ocupado.
 	float WeightMult = CurrentWeapon == EEAWWeapon::Faca ? 1.03f : CurrentWeapon == EEAWWeapon::Machado ? 0.98f : 1.f;
-	if (CurrentWeapon == EEAWWeapon::Mosquete)
+	if (IsFirearmWeapon(CurrentWeapon))
 	{
 		WeightMult = 0.95f;
 		switch (Firearm->GetState())
@@ -904,7 +915,7 @@ void AEAWCharacter::StartRagdoll()
 	WeaponTP->SetVisibility(false);
 	if (HasAuthority())
 	{
-		DropWeapon(CurrentWeapon, CurrentWeapon != EEAWWeapon::Mosquete || Firearm->IsLoaded(), LastHitDir * 150.f);
+		DropWeapon(CurrentWeapon, !IsFirearmWeapon(CurrentWeapon) || Firearm->IsLoaded(), LastHitDir * 150.f);
 	}
 	// Limpa a fisica parcial do tronco e a trava de tempo antes de virar ragdoll (senao o corpo "voa").
 	CustomTimeDilation = 1.f;
@@ -1206,16 +1217,18 @@ void AEAWCharacter::DrawDebugHud()
 		TEXT("VOCE  %s (%s)  stamina %.0f  |  %s, ferimentos %d%s"),
 		StateNames[StateIdx], DirNames[DirIdx], Combat->GetStamina(), LifeNames[LifeIdx], Wounds->GetNonVitalWounds(),
 		Combat->HasRiposte() ? TEXT("  |  CONTRA-ATAQUE!") : TEXT("")));
-	if (CurrentWeapon == EEAWWeapon::Mosquete)
+	if (IsFirearmWeapon(CurrentWeapon))
 	{
 		static const TCHAR* FireNames[] = { TEXT("guarda"), TEXT("erguendo"), TEXT("MIRANDO"), TEXT("DISPARO"), TEXT("baixando"), TEXT("CARREGANDO") };
 		static const TCHAR* StageNames[] = { TEXT("escorva"), TEXT("polvora e bala"), TEXT("tirar vareta"), TEXT("socar"), TEXT("guardar vareta"), TEXT("armar o cao") };
 		const int32 Fs = FMath::Clamp(static_cast<int32>(Firearm->GetState()), 0, 5);
-		FString Line = FString::Printf(TEXT("MOSQUETE %s  |  %s  |  %s"), bBayonet ? TEXT("[X] COMBATE (baioneta)") : TEXT("[X] TIRO"),
+		FString Line = FString::Printf(TEXT("%s %s  |  %s  |  %s"), CurrentWeapon == EEAWWeapon::Pistola ? TEXT("PISTOLA") : TEXT("MOSQUETE"), CurrentWeapon == EEAWWeapon::Pistola ? TEXT("") : bBayonet ? TEXT("[X] COMBATE (baioneta)") : TEXT("[X] TIRO"),
 			Firearm->IsLoaded() ? TEXT("CARREGADO") : TEXT("descarregado (R)"), FireNames[Fs]);
 		if (Firearm->GetState() == EFirearmState::Reloading)
 		{
-			Line += FString::Printf(TEXT(" %d/6: %s"), Firearm->GetStage() + 1, StageNames[FMath::Clamp<int32>(Firearm->GetStage(), 0, 5)]);
+			const bool bP = CurrentWeapon == EEAWWeapon::Pistola;
+			static const TCHAR* PStageNames[] = { TEXT("escorva"), TEXT("polvora e bala"), TEXT("socar"), TEXT("vareta e cao"), TEXT("guarda") };
+			Line += FString::Printf(TEXT(" %d/%d: %s"), Firearm->GetStage() + 1, Firearm->NumStages(), bP ? PStageNames[FMath::Clamp<int32>(Firearm->GetStage(), 0, 4)] : StageNames[FMath::Clamp<int32>(Firearm->GetStage(), 0, 5)]);
 		}
 		GEngine->AddOnScreenDebugMessage(1004, 0.f, FColor(255, 220, 120), Line);
 	}
@@ -1264,7 +1277,8 @@ void AEAWCharacter::PossessedBy(AController* NewController)
 		FParse::Value(FCommandLine::Get(), TEXT("EAWArma="), Arma);
 		// Duas armas: mosquete + uma de corpo a corpo (padrao sabre). -EAWArma=Faca|Machado|Sabre comeca com ela na mao.
 		const EEAWWeapon Melee = Arma == TEXT("Faca") ? EEAWWeapon::Faca : Arma == TEXT("Machado") ? EEAWWeapon::Machado : EEAWWeapon::Sabre;
-		if (Arma.IsEmpty()) { EquipWeapon(Melee); EquipWeapon(EEAWWeapon::Mosquete); }
+		if (Arma == TEXT("Pistola")) { EquipWeapon(EEAWWeapon::Sabre); EquipWeapon(EEAWWeapon::Pistola); }   // teste: pistola na vaga 1
+		else if (Arma.IsEmpty()) { EquipWeapon(Melee); EquipWeapon(EEAWWeapon::Mosquete); }
 		else { EquipWeapon(EEAWWeapon::Mosquete); EquipWeapon(Melee); }
 		if (CurrentWeapon == EEAWWeapon::Mosquete && FParse::Param(FCommandLine::Get(), TEXT("EAWBaioneta")))
 		{
@@ -1302,7 +1316,7 @@ void AEAWCharacter::EquipWeapon(EEAWWeapon NewWeapon)
 	{
 		return;
 	}
-	if (CurrentWeapon == EEAWWeapon::Mosquete && NewWeapon != EEAWWeapon::Mosquete)
+	if (IsFirearmWeapon(CurrentWeapon) && NewWeapon != CurrentWeapon)
 	{
 		Firearm->RequestCancel();
 	}
@@ -1312,7 +1326,7 @@ void AEAWCharacter::EquipWeapon(EEAWWeapon NewWeapon)
 	Combat->ResetCombat();
 	bBayonet = false;
 	OnRep_Weapon();
-	UE_LOG(LogEAWCombat, Log, TEXT("%s arma: %s"), *GetName(), NewWeapon == EEAWWeapon::Mosquete ? TEXT("mosquete") : NewWeapon == EEAWWeapon::Faca ? TEXT("faca") : NewWeapon == EEAWWeapon::Machado ? TEXT("machado") : TEXT("sabre"));
+	UE_LOG(LogEAWCombat, Log, TEXT("%s arma: %s"), *GetName(), NewWeapon == EEAWWeapon::Mosquete ? TEXT("mosquete") : NewWeapon == EEAWWeapon::Pistola ? TEXT("pistola") : NewWeapon == EEAWWeapon::Faca ? TEXT("faca") : NewWeapon == EEAWWeapon::Machado ? TEXT("machado") : TEXT("sabre"));
 }
 
 void AEAWCharacter::OnRep_Weapon()
@@ -1327,9 +1341,10 @@ void AEAWCharacter::OnRep_Weapon()
 
 void AEAWCharacter::ApplyWeaponVisuals()
 {
-	USkeletalMesh* M = CurrentWeapon == EEAWWeapon::Pistola ? nullptr : CurrentWeapon == EEAWWeapon::Mosquete ? MeshMosquete : CurrentWeapon == EEAWWeapon::Faca ? MeshFaca
+	USkeletalMesh* M = CurrentWeapon == EEAWWeapon::Pistola ? MeshPistola : CurrentWeapon == EEAWWeapon::Mosquete ? MeshMosquete : CurrentWeapon == EEAWWeapon::Faca ? MeshFaca
 		: CurrentWeapon == EEAWWeapon::Machado ? MeshMachado : MeshSabre;
 	ApplyWeaponCombatConfig();
+	ApplyFirearmConfig();
 	if (M && WeaponTP->SkeletalMesh != M)
 	{
 		WeaponTP->SetSkeletalMesh(M);
@@ -1344,14 +1359,14 @@ void AEAWCharacter::ApplyWeaponVisuals()
 	WeaponFP->SetVisibility(bFirstPersonActive && !bDown);
 	if (UEAWAnimInstance* AnimLayers = Cast<UEAWAnimInstance>(GetMesh()->GetAnimInstance()))
 	{
-		AnimLayers->bAllowUpperRun = CurrentWeapon != EEAWWeapon::Mosquete;   // correr com a arma curta no ombro
+		AnimLayers->bAllowUpperRun = !IsFirearmWeapon(CurrentWeapon);   // correr com a arma curta no ombro
 	}
 	ApplyFirstPersonLayout();
 	if (!bAnimated || bDown)
 	{
 		return;
 	}
-	if (CurrentWeapon == EEAWWeapon::Mosquete)
+	if (IsFirearmWeapon(CurrentWeapon))
 	{
 		HandleFirearmState(Firearm->GetState(), Firearm->GetStage());
 	}
@@ -1367,7 +1382,7 @@ void AEAWCharacter::ApplyFirstPersonLayout()
 	{
 		return;
 	}
-	if (CurrentWeapon == EEAWWeapon::Mosquete)
+	if (IsFirearmWeapon(CurrentWeapon))   // mosquete e pistola: corpo igual ao de 3a pessoa, mira com o olho
 	{
 		// Mosquete: corpo de 1a pessoa igual ao de 3a em relacao a camera (camera 6 cm a frente do centro).
 		// A mira encosta o rosto na coronha (a camera vai ate o olho, ver UpdateFirearmView).
@@ -1392,7 +1407,7 @@ void AEAWCharacter::AttachWeaponToHand(USceneComponent* HandOwner)
 	{
 		// Sem a pose do corpo, a malha da arma volta a pose de referencia: posiciona o componente para que
 		// o osso da arma fique exatamente onde estava.
-		const FName Bone = CurrentWeapon == EEAWWeapon::Mosquete ? FName(TEXT("arma")) : FName(TEXT("weapon_r"));
+		const FName Bone = CurrentWeapon == EEAWWeapon::Mosquete ? FName(TEXT("arma")) : CurrentWeapon == EEAWWeapon::Pistola ? FName(TEXT("pistola")) : FName(TEXT("weapon_r"));
 		const FReferenceSkeleton& Ref = WeaponTP->SkeletalMesh->GetRefSkeleton();
 		const int32 Idx = Ref.FindBoneIndex(Bone);
 		if (Idx == INDEX_NONE)
@@ -1420,42 +1435,48 @@ void AEAWCharacter::AttachWeaponToSkeleton()
 
 void AEAWCharacter::HandleFirearmState(EFirearmState NewState, uint8 Stage)
 {
-	if (!bAnimated || CurrentWeapon != EEAWWeapon::Mosquete || !Wounds->CanFight() || GetMesh()->IsSimulatingPhysics())
+	if (!bAnimated || !IsFirearmWeapon(CurrentWeapon) || !Wounds->CanFight() || GetMesh()->IsSimulatingPhysics())
 	{
 		return;
 	}
 	auto Len = [](UAnimSequence* A) { return A ? A->SequenceLength : 0.f; };
 	const FFirearmConfig& C = Firearm->Config;
-	if (bBayonet)
+	const bool bP = CurrentWeapon == EEAWWeapon::Pistola;
+	UAnimSequence* Guarda = bP ? AnimPGuarda : AnimMGuarda;    UAnimSequence* GuardaFP = bP ? AnimPGuardaFP : AnimMGuardaFP;
+	UAnimSequence* Erguer = bP ? AnimPErguer : AnimMErguer;    UAnimSequence* ErguerFP = bP ? AnimPErguerFP : AnimMErguerFP;
+	UAnimSequence* Mira = bP ? AnimPMira : AnimMMira;          UAnimSequence* MiraFP = bP ? AnimPMiraFP : AnimMMiraFP;
+	UAnimSequence* Tiro = bP ? AnimPTiro : AnimMTiro;          UAnimSequence* TiroFP = bP ? AnimPTiroFP : AnimMTiroFP;
+	UAnimSequence* Baixar = bP ? AnimPBaixar : AnimMBaixar;    UAnimSequence* BaixarFP = bP ? AnimPBaixarFP : AnimMBaixarFP;
+	UAnimSequence* Recarga = bP ? AnimPRecarga : AnimMRecarga; UAnimSequence* RecargaFP = bP ? AnimPRecargaFP : AnimMRecargaFP;
+	if (bBayonet && !bP)
 	{
-		// Combate com o mosquete (tecla X): guarda ate as animacoes de baioneta/coronha existirem.
-		PlaySegment(AnimMGuarda, 0.f, Len(AnimMGuarda), Len(AnimMGuarda), true, AnimMGuardaFP);
+		PlaySegment(Guarda, 0.f, Len(Guarda), Len(Guarda), true, GuardaFP);
 		return;
 	}
 	switch (NewState)
 	{
 	case EFirearmState::Lowered:
-		PlaySegment(AnimMGuarda, 0.f, Len(AnimMGuarda), Len(AnimMGuarda), true, AnimMGuardaFP);
+		PlaySegment(Guarda, 0.f, Len(Guarda), Len(Guarda), true, GuardaFP);
 		break;
 	case EFirearmState::Raising:
-		PlaySegment(AnimMErguer, 0.f, Len(AnimMErguer), C.AimInTime, false, AnimMErguerFP);
+		PlaySegment(Erguer, 0.f, Len(Erguer), C.AimInTime, false, ErguerFP);
 		break;
 	case EFirearmState::Aiming:
-		if (Firearm->IsLoaded()) PlaySegment(AnimMMira, 0.f, Len(AnimMMira), Len(AnimMMira), true, AnimMMiraFP);
-		else PlaySegment(AnimMTiro, Len(AnimMTiro) - 0.02f, Len(AnimMTiro), 1.f, true, AnimMTiroFP);   // cao abaixado
+		if (Firearm->IsLoaded()) PlaySegment(Mira, 0.f, Len(Mira), Len(Mira), true, MiraFP);
+		else PlaySegment(Tiro, Len(Tiro) - 0.02f, Len(Tiro), 1.f, true, TiroFP);   // depois do tiro, segura a pose final
 		break;
 	case EFirearmState::Firing:
-		PlaySegment(AnimMTiro, 0.f, Len(AnimMTiro), C.FireRecoverTime, false, AnimMTiroFP);
+		PlaySegment(Tiro, 0.f, Len(Tiro), C.FireRecoverTime, false, TiroFP);
 		break;
 	case EFirearmState::Lowering:
-		if (Firearm->IsLoaded()) PlaySegment(AnimMErguer, Len(AnimMErguer), 0.f, C.AimOutTime, false, AnimMErguerFP);
-		else PlaySegment(AnimMBaixar, 0.f, Len(AnimMBaixar), C.AimOutTime, false, AnimMBaixarFP);
+		if (Firearm->IsLoaded()) PlaySegment(Erguer, Len(Erguer), 0.f, C.AimOutTime, false, ErguerFP);
+		else PlaySegment(Baixar, 0.f, Len(Baixar), C.AimOutTime, false, BaixarFP);
 		break;
 	case EFirearmState::Reloading:
 	{
-		const int32 S = FMath::Clamp<int32>(Stage, 0, 5);
-		const float T0 = UEAWFirearmComponent::ReloadAnimTimes[S], T1 = UEAWFirearmComponent::ReloadAnimTimes[S + 1];
-		PlaySegment(AnimMRecarga, T0, T1, (T1 - T0) * Firearm->ReloadScale(), false, AnimMRecargaFP);
+		const int32 S = FMath::Clamp<int32>(Stage, 0, Firearm->NumStages() - 1);
+		const float T0 = Firearm->ReloadTimes[S], T1 = Firearm->ReloadTimes[S + 1];
+		PlaySegment(Recarga, T0, T1, (T1 - T0) * Firearm->ReloadScale(), false, RecargaFP);
 		break;
 	}
 	default:
@@ -1533,6 +1554,12 @@ void AEAWCharacter::UpdateFirearmView(float Dt)
 void AEAWCharacter::GetShotAim(FVector& Origin, FVector& Dir)
 {
 	Origin = Camera->GetComponentLocation();
+	if (FParse::Param(FCommandLine::Get(), TEXT("EAWDiagBala")))
+	{
+		const FTransform Cam = Camera->GetComponentTransform();
+		auto L = [&](FName B) { return Cam.InverseTransformPosition(FirstPersonMesh->GetSocketLocation(B)).ToString(); };
+		UE_LOG(LogEAWCombat, Log, TEXT("diag mira (espaco da camera): hand_r=%s weapon_r=%s weapon_r_tip=%s pistola_boca=%s"), *L(TEXT("hand_r")), *L(TEXT("weapon_r")), *L(TEXT("weapon_r_tip")), *L(TEXT("pistola_boca")));
+	}
 	const FFirearmConfig& C = Firearm->Config;
 	// Desvio do cano liso (normal, desvio padrao em graus); sem mirar, o tiro sai muito mais aberto.
 	const float Sigma = AimAlpha > 0.9f ? C.AimSpreadDeg : 3.f;
@@ -1548,8 +1575,9 @@ void AEAWCharacter::GetShotAim(FVector& Origin, FVector& Dir)
 void AEAWCharacter::PlayShotEffects(const FVector& Dir)
 {
 	USkeletalMeshComponent* Src = (bFirstPersonActive && IsLocallyControlled()) ? FirstPersonMesh : GetMesh();
-	const FVector Muzzle = Src->GetSocketLocation(TEXT("arma_boca"));
-	const FVector Pan = Src->GetSocketLocation(TEXT("arma_cao"));
+	const bool bP = CurrentWeapon == EEAWWeapon::Pistola;
+	const FVector Muzzle = Src->GetSocketLocation(bP ? TEXT("pistola_boca") : TEXT("arma_boca"));
+	const FVector Pan = Src->GetSocketLocation(bP ? TEXT("weapon_r") : TEXT("arma_cao"));
 	AEAWSmokeFX::MuzzleBlast(GetWorld(), Muzzle, Dir, Pan);
 	if (IsLocallyControlled())
 	{
@@ -1626,7 +1654,7 @@ void AEAWCharacter::UpdateBodyTurn(float Dt)
 	const float Delta = FRotator::NormalizeAxis(GetControlRotation().Yaw - GetActorRotation().Yaw);
 	const bool bMoving = GetVelocity().Size2D() > 20.f;
 	const bool bBusy = Combat->GetState() != EMeleeState::Idle
-		|| (CurrentWeapon == EEAWWeapon::Mosquete && Firearm->GetState() != EFirearmState::Lowered && Firearm->GetState() != EFirearmState::Reloading);
+		|| (IsFirearmWeapon(CurrentWeapon) && Firearm->GetState() != EFirearmState::Lowered && Firearm->GetState() != EFirearmState::Reloading);
 	if (!bMoving && !bBusy)
 	{
 		if (FMath::Abs(Delta) > TurnInPlaceAngle) bTurnInPlace = true;
@@ -1817,11 +1845,11 @@ void AEAWCharacter::CompletePickup()
 	const bool bNewLoaded = Target->IsLoaded();
 	const EEAWWeapon Old = IsFirearmWeapon(New) ? PrimaryWeapon : SecondaryWeapon;
 	// A antiga cai no chao (o mosquete leva junto se estava carregado).
-	const bool bOldLoaded = Old != EEAWWeapon::Mosquete || Firearm->IsLoaded();
+	const bool bOldLoaded = !IsFirearmWeapon(Old) || Firearm->IsLoaded();
 	Target->Destroy();
 	DropWeapon(Old, bOldLoaded, GetActorForwardVector() * 80.f);
 	EquipWeapon(New);
-	if (New == EEAWWeapon::Mosquete)
+	if (IsFirearmWeapon(New))
 	{
 		Firearm->SetLoaded(bNewLoaded);
 	}
@@ -1836,8 +1864,52 @@ void AEAWCharacter::DropWeapon(EEAWWeapon W, bool bLoaded, const FVector& ExtraV
 		return;
 	}
 	// Sai da mao, na posicao do osso da arma (o mosquete pelo osso proprio; as outras pela mao).
-	const FName Bone = W == EEAWWeapon::Mosquete && W == CurrentWeapon ? FName(TEXT("arma")) : FName(TEXT("weapon_r"));
+	const FName Bone = W != CurrentWeapon ? FName(TEXT("weapon_r")) : W == EEAWWeapon::Mosquete ? FName(TEXT("arma")) : W == EEAWWeapon::Pistola ? FName(TEXT("pistola")) : FName(TEXT("weapon_r"));
 	FTransform At = GetMesh()->GetSocketTransform(Bone);
 	At.SetScale3D(FVector::OneVector);
 	AEAWDroppedWeapon::Drop(GetWorld(), W, At, GetVelocity() + ExtraVelocity + FVector(0.f, 0.f, 60.f), bLoaded);
+}
+
+// ---------------------------------------------------------------------------
+// Tiro de cada arma de fogo: mosquete Charleville 1777 e pistola de cavalaria An IX
+// ---------------------------------------------------------------------------
+
+void AEAWCharacter::ApplyFirearmConfig()
+{
+	if (!IsFirearmWeapon(CurrentWeapon))
+	{
+		return;
+	}
+	FFirearmConfig C;   // valores do mosquete
+	if (CurrentWeapon == EEAWWeapon::Pistola)
+	{
+		// An IX: cano de 20 cm, carga menor -> ~220 m/s; bala de 22 g / 16,5 mm; cano curto = menos preciso.
+		C.MuzzleVelocity = 22000.f;
+		C.BallMassKg = 0.022f;
+		C.BallDiameterCm = 1.65f;
+		C.AimSpreadDeg = 0.9f;
+		C.AimInTime = 0.40f;
+		C.AimOutTime = 0.35f;
+		C.FireRecoverTime = 0.60f;
+		C.ReloadTime = 11.f;
+		C.RecoilPitch = 9.f;
+		C.RecoilYaw = 2.f;
+		C.AimMoveSpeedMult = 0.75f;
+		C.ReloadMoveSpeedMult = 0.6f;
+		C.AimTurnCap = 170.f;
+		// Etapas (quadros 1, 112, 162, 224, 256, 270 da AS_Pistola_Recarga): escorva, polvora e bala, socar, vareta e cao, guarda.
+		Firearm->ReloadTimes = { 0.f, 111.f / 30.f, 161.f / 30.f, 223.f / 30.f, 255.f / 30.f, 269.f / 30.f };
+		// Mira de braco esticado: a camera vai ao olho direito (medido no Blender: 5,7 cm a frente, 1,9 a direita, 2,7 acima).
+		AimEyeOffset = FVector(5.7f, 1.9f, 2.7f);
+	}
+	else
+	{
+		Firearm->ReloadTimes = { 0.f, 139.f / 30.f, 209.f / 30.f, 295.f / 30.f, 365.f / 30.f, 443.f / 30.f, 479.f / 30.f };
+		AimEyeOffset = FVector(9.4f, 5.6f, 4.5f);
+	}
+	if (FParse::Param(FCommandLine::Get(), TEXT("EAWRecargaRapida")))
+	{
+		C.ReloadTime = 3.f;
+	}
+	Firearm->Config = C;
 }

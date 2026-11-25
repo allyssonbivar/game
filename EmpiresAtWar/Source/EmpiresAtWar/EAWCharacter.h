@@ -258,6 +258,16 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Armas") class USkeletalMesh* MeshSabre = nullptr;
 	UPROPERTY(EditAnywhere, Category = "Armas") class USkeletalMesh* MeshFaca = nullptr;
 	UPROPERTY(EditAnywhere, Category = "Armas") class USkeletalMesh* MeshMachado = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Armas") class USkeletalMesh* MeshPistola = nullptr;
+	// Pistola An IX (uma mao): guarda, erguer, mira, tiro, baixar, recarga (+ 1a pessoa).
+	UPROPERTY() class UAnimSequence* AnimPGuarda = nullptr;  UPROPERTY() class UAnimSequence* AnimPGuardaFP = nullptr;
+	UPROPERTY() class UAnimSequence* AnimPErguer = nullptr;  UPROPERTY() class UAnimSequence* AnimPErguerFP = nullptr;
+	UPROPERTY() class UAnimSequence* AnimPMira = nullptr;    UPROPERTY() class UAnimSequence* AnimPMiraFP = nullptr;
+	UPROPERTY() class UAnimSequence* AnimPTiro = nullptr;    UPROPERTY() class UAnimSequence* AnimPTiroFP = nullptr;
+	UPROPERTY() class UAnimSequence* AnimPBaixar = nullptr;  UPROPERTY() class UAnimSequence* AnimPBaixarFP = nullptr;
+	UPROPERTY() class UAnimSequence* AnimPRecarga = nullptr; UPROPERTY() class UAnimSequence* AnimPRecargaFP = nullptr;
+	/** Mosquete/pistola: valores de tiro e etapas da recarga de cada arma. */
+	void ApplyFirearmConfig();
 
 	UPROPERTY(ReplicatedUsing = OnRep_Weapon) EEAWWeapon CurrentWeapon = EEAWWeapon::Sabre;
 	UPROPERTY(ReplicatedUsing = OnRep_Weapon) bool bBayonet = false;
@@ -355,9 +365,10 @@ public:
 	void TestStartPickup() { InputInteractPressed(); }
 protected:
 	UFUNCTION(Server, Reliable) void ServerSetBayonet(bool bNew);
-	bool UsingMusketFire() const { return CurrentWeapon == EEAWWeapon::Mosquete && !bBayonet; }
+	/** Arma de fogo em modo de tiro (mosquete sem X, ou pistola). */
+	bool UsingMusketFire() const { return (CurrentWeapon == EEAWWeapon::Mosquete && !bBayonet) || CurrentWeapon == EEAWWeapon::Pistola; }
 	/** Botoes de corpo a corpo valem para sabre, faca, machado e mosquete no modo combate (X). */
-	bool UsesMeleeInput() const { return CurrentWeapon != EEAWWeapon::Mosquete || bBayonet; }
+	bool UsesMeleeInput() const { return (CurrentWeapon != EEAWWeapon::Mosquete && CurrentWeapon != EEAWWeapon::Pistola) || (CurrentWeapon == EEAWWeapon::Mosquete && bBayonet); }
 	/** Tempos, dano e lamina de cada arma (sabre, faca, machado, mosquete com baioneta/coronha). */
 	void ApplyWeaponCombatConfig();
 

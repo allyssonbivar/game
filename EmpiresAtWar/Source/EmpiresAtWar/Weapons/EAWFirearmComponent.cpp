@@ -108,14 +108,14 @@ void UEAWFirearmComponent::OnStateTimer()
 		{
 			bReloadAfterLower = false;
 			const uint8 S = SavedStage;
-			SetState(EFirearmState::Reloading, S, (ReloadAnimTimes[S + 1] - ReloadAnimTimes[S]) * ReloadScale());
+			SetState(EFirearmState::Reloading, S, (ReloadTimes[S + 1] - ReloadTimes[S]) * ReloadScale());
 		}
 		else SetState(EFirearmState::Lowered, 0, 0.f);
 		break;
 	case EFirearmState::Reloading:
 	{
 		const uint8 Next = Rep.Stage + 1;
-		if (Next >= 6)
+		if (Next >= NumStages())
 		{
 			Rep.bLoaded = true;
 			SavedStage = 0;
@@ -125,7 +125,7 @@ void UEAWFirearmComponent::OnStateTimer()
 		else
 		{
 			SavedStage = Next;
-			SetState(EFirearmState::Reloading, Next, (ReloadAnimTimes[Next + 1] - ReloadAnimTimes[Next]) * ReloadScale());
+			SetState(EFirearmState::Reloading, Next, (ReloadTimes[Next + 1] - ReloadTimes[Next]) * ReloadScale());
 		}
 		break;
 	}
@@ -181,7 +181,7 @@ void UEAWFirearmComponent::ServerReload_Implementation()
 	if (Rep.State == EFirearmState::Lowered)
 	{
 		const uint8 S = SavedStage;
-		SetState(EFirearmState::Reloading, S, (ReloadAnimTimes[S + 1] - ReloadAnimTimes[S]) * ReloadScale());
+		SetState(EFirearmState::Reloading, S, (ReloadTimes[S + 1] - ReloadTimes[S]) * ReloadScale());
 	}
 	else if (Rep.State == EFirearmState::Aiming || Rep.State == EFirearmState::Firing)
 	{

@@ -182,13 +182,15 @@ bool FEAWAnimProxy::Evaluate(FPoseContext& Output)
 		const FReferenceSkeleton& Ref = Bones.GetReferenceSkeleton();
 		const int32 Spine = Ref.FindBoneIndex(TEXT("spine_01"));
 		const int32 Arma = Ref.FindBoneIndex(TEXT("arma"));   // ossos da arma longa: sempre da camada de combate
+		const int32 Pist = Ref.FindBoneIndex(TEXT("pistola"));   // idem para a pistola
 		UpperMask.SetNumZeroed(Out.GetNumBones());
 		for (FCompactPoseBoneIndex I : Out.ForEachBoneIndex())
 		{
 			const int32 MeshIndex = Bones.MakeMeshPoseIndex(I).GetInt();
 			const bool bUpper = Spine != INDEX_NONE && (MeshIndex == Spine || Ref.BoneIsChildOf(MeshIndex, Spine));
 			const bool bArma = Arma != INDEX_NONE && (MeshIndex == Arma || Ref.BoneIsChildOf(MeshIndex, Arma));
-			UpperMask[I.GetInt()] = (bUpper || bArma) ? 1 : 0;
+			const bool bPist = Pist != INDEX_NONE && (MeshIndex == Pist || Ref.BoneIsChildOf(MeshIndex, Pist));
+			UpperMask[I.GetInt()] = (bUpper || bArma || bPist) ? 1 : 0;
 		}
 	}
 
@@ -271,25 +273,24 @@ bool FEAWAnimProxy::Evaluate(FPoseContext& Output)
 			const FTransform ParentCS = CS.GetComponentSpaceTransform(SpineParent);
 			FTransform NewSpine = SpineCS;
 			NewSpine.SetRotation(Qz * SpineCS.GetRotation());
-			FTransform ArmaLocal;
-			FCompactPoseBoneIndex Arma(INDEX_NONE);
-			if (ArmaMesh != INDEX_NONE)
+			// Ossos das armas presos a raiz (mosquete e pistola) giram junto, em volta do mesmo ponto.
+			TArray<TPair<FCompactPoseBoneIndex, FTransform>> Extra;
+			for (const int32 MeshIdx : { ArmaMesh, Ref.FindBoneIndex(TEXT("pistola")) })
 			{
-				Arma = Bones.MakeCompactPoseIndex(FMeshPoseBoneIndex(ArmaMesh));
-			}
-			if (Arma.GetInt() != INDEX_NONE)
-			{
-				const FTransform ArmaCS = CS.GetComponentSpaceTransform(Arma);
+				if (MeshIdx == INDEX_NONE) continue;
+				const FCompactPoseBoneIndex B = Bones.MakeCompactPoseIndex(FMeshPoseBoneIndex(MeshIdx));
+				if (B.GetInt() == INDEX_NONE) continue;
+				const FTransform BCS = CS.GetComponentSpaceTransform(B);
 				const FVector P = SpineCS.GetLocation();
-				FTransform NewArma = ArmaCS;
-				NewArma.SetLocation(P + Qz.RotateVector(ArmaCS.GetLocation() - P));
-				NewArma.SetRotation(Qz * ArmaCS.GetRotation());
-				ArmaLocal = NewArma.GetRelativeTransform(CS.GetComponentSpaceTransform(Out.GetParentBoneIndex(Arma)));
+				FTransform NewB = BCS;
+				NewB.SetLocation(P + Qz.RotateVector(BCS.GetLocation() - P));
+				NewB.SetRotation(Qz * BCS.GetRotation());
+				Extra.Add(TPair<FCompactPoseBoneIndex, FTransform>(B, NewB.GetRelativeTransform(CS.GetComponentSpaceTransform(Out.GetParentBoneIndex(B)))));
 			}
 			Out[Spine] = NewSpine.GetRelativeTransform(ParentCS);
-			if (Arma.GetInt() != INDEX_NONE)
+			for (const TPair<FCompactPoseBoneIndex, FTransform>& E : Extra)
 			{
-				Out[Arma] = ArmaLocal;
+				Out[E.Key] = E.Value;
 			}
 		}
 	}

@@ -145,3 +145,10 @@ Todas começam e terminam na guarda. Golpes aceleram até o impacto (ease-in) e 
 `-EAWAutoAndar` (anda e gira sozinho), `-EAWDueloDist=500` (bots começam longe), `-EAWArmaBot=Mosquete|Faca|Machado|Misto`,
 `-EAWArma=Sabre|Faca|Machado` (jogador), `-EAWBaioneta` (começa no combate do mosquete), `-EAWRecargaRapida` (3 s),
 `-EAWCampo` (chão de 600 m), `-EAWDiagBala` (diagnóstico do rastreio da bala), `-EAWAutoTiro`, `-EAWBotDist=N`.
+
+## Pistola An IX (2026-11-25)
+- Modelo próprio: pistola de cavalaria francesa An IX (1801) — 35 cm, cano de 20 cm, cal. 17 mm, 1,27 kg; ponteira e soleira de latão; vareta presa sob o cano (usa o osso `vareta` nas animações).
+- Osso próprio **`pistola`** (filho da raiz, como o `arma` do mosquete) + `pistola_boca` (clarão/fumaça). Ver bug #52.
+- Tiro: bala de 22 g / 16,5 mm a **220 m/s**, desvio 0,9° (cano curto), coice de 9°, mira mais leve (anda 75%, gira 170°/s). Teste: acerto na cabeça a 7,4 m (215 m/s, 508 J).
+- Animações (3ª e 1ª pessoa): guarda, erguer, **mira de braço esticado com o corpo de lado** (câmera vai ao olho: 5,7 cm à frente, 1,9 à direita, 2,7 acima), tiro (cano sobe 18°), baixar, **recarga de 11 s em 5 etapas com a mão esquerda** (meio-armar, cartucho na boca, escorva, cano para cima, pólvora e bala, vareta para dentro, socar 2x, vareta de volta, armar, guarda).
+- Ocupa a vaga 1 (arma de fogo) no lugar do mosquete; pode ser pega do chão (F, 3 s). `-EAWArma=Pistola` começa com ela.

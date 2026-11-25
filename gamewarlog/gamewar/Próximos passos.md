@@ -48,5 +48,7 @@ atualizado: 2026-11-25
 - [ ] Animações próprias para faca (empunhadura curta) e machado (golpe de cima pesado) — hoje usam as do sabre
 - [x] Pegar armas do chão (F, 3 s, barra) e troca "desce/sobe" (2026-11-25); 2 armas por soldado
 - [ ] Desligar o desenho de depuração da lâmina (linha amarela) fora dos testes
-- [ ] **Pistola** (arma de fogo da vaga 1): modelo, animações de uma mão (mira, tiro, recarga) e balística própria
+- [x] **Pistola** An IX (2026-11-25): modelo, osso próprio, animações de uma mão, tiro e recarga — ver [[Estado atual]]
 - [ ] Arma no chão: brilho/contorno quando estiver na mira (hoje só o aviso)
+- [ ] Conferir se sabre/faca/machado (presos ao `weapon_r`) chegam girados na Unreal como a pistola chegava (bug #52); se sim, dar osso próprio também
+- [ ] Recarga da pistola em 1ª pessoa: a mão esquerda passa embaixo no centro ao pôr a pólvora (8,8 cm de folga no alcance da vareta)

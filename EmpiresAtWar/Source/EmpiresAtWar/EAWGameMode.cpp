@@ -75,6 +75,7 @@ void AEAWGameMode::HandleStartingNewPlayer_Implementation(APlayerController* New
 		const FVector F = P->GetActorForwardVector(), R = P->GetActorRightVector(), Base = P->GetActorLocation() - FVector(0.f, 0.f, 60.f);
 		AEAWDroppedWeapon::Drop(GetWorld(), EEAWWeapon::Faca, FTransform(FRotator(0.f, 30.f, 0.f), Base + F * 120.f - R * 10.f), FVector::ZeroVector, true);
 		AEAWDroppedWeapon::Drop(GetWorld(), EEAWWeapon::Machado, FTransform(FRotator(0.f, 80.f, 0.f), Base + F * 160.f + R * 120.f), FVector::ZeroVector, true);
+		AEAWDroppedWeapon::Drop(GetWorld(), EEAWWeapon::Pistola, FTransform(FRotator(0.f, -40.f, 0.f), Base + F * 150.f - R * 120.f), FVector::ZeroVector, true);
 		if (FParse::Param(Cmd, TEXT("EAWAutoPegar")))
 		{
 			TWeakObjectPtr<AEAWCharacter> Soldier = Cast<AEAWCharacter>(NewPlayer->GetPawn());
@@ -90,6 +91,12 @@ void AEAWGameMode::HandleStartingNewPlayer_Implementation(APlayerController* New
 	{
 		AutoPC = NewPlayer;
 		GetWorldTimerManager().SetTimer(AutoTimer, this, &AEAWGameMode::AutoFire, 0.1f, true, 0.5f);
+	}
+
+	// Testes automaticos: o mouse real (de quem esta usando o PC) nao mexe a camera.
+	if (NewPlayer && (FParse::Param(Cmd, TEXT("EAWAutoTiro")) || FParse::Param(Cmd, TEXT("EAWAutoPegar")) || FParse::Param(Cmd, TEXT("EAWAutoAndar")) || FParse::Param(Cmd, TEXT("EAWAutoAtaque"))))
+	{
+		NewPlayer->SetIgnoreLookInput(true);
 	}
 
 	int32 Shots = 0;

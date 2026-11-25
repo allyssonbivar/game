@@ -50,7 +50,10 @@ public:
 
 	/** Tempos das etapas da recarga na animacao (s, a 30 qps): escorva, carga, vareta, socar, guardar, armar. */
 	static const float ReloadAnimTimes[7];
-	float ReloadScale() const { return Config.ReloadTime / ReloadAnimTimes[6]; }
+	float ReloadScale() const { return Config.ReloadTime / FMath::Max(0.1f, ReloadTimes.Last()); }
+	/** Tempos das etapas da recarga da arma atual (comeca com os do mosquete; a pistola tem 5 etapas). */
+	TArray<float> ReloadTimes = { 0.f, 139.f / 30.f, 209.f / 30.f, 295.f / 30.f, 365.f / 30.f, 443.f / 30.f, 479.f / 30.f };
+	int32 NumStages() const { return ReloadTimes.Num() - 1; }
 
 	/** Chamado pelo simulador de balas (servidor). */
 	void HandleBallHit(const FHitResult& Hit, const FVector& Velocity);
