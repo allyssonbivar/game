@@ -1,0 +1,25 @@
+# ---------- Unreal: gerado na compilacao/execucao ----------
+EmpiresAtWar/Binaries/
+EmpiresAtWar/Intermediate/
+EmpiresAtWar/Saved/
+EmpiresAtWar/DerivedDataCache/
+EmpiresAtWar/Plugins/*/Binaries/
+EmpiresAtWar/Plugins/*/Intermediate/
+*.sln
+*.VC.db
+*.opensdf
+*.sdf
+.vs/
+
+# ---------- Blender: copias automaticas e backups ----------
+*.blend1
+Modelos/*_backup_*.blend
+
+# ---------- Fora do repositorio ----------
+# Gravacoes de outros jogos (referencia; >100 MB cada)
+*.mp4
+# Modelos extraidos de outros jogos (so referencia de medida, nao fazem parte do jogo)
+Modelos/*.obj
+Animar/
+# Personagem bruto do Mixamo (a versao usada esta no Soldado.blend)
+Modelos/Soldado_TPose.fbx

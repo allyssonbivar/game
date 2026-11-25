@@ -1,0 +1,308 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Character.h"
+#include "Combat/MeleeTypes.h"
+#include "Combat/WoundComponent.h"
+#include "Weapons/EAWFirearmTypes.h"
+#include "EAWCharacter.generated.h"
+
+class UEAWFirearmComponent;
+
+class UCameraComponent;
+class UCapsuleComponent;
+class UStaticMeshComponent;
+class UMeleeCombatComponent;
+
+/**
+ * Soldado do prototipo: camera em primeira pessoa, arma procedural,
+ * hitboxes por regiao do corpo (ate existir um esqueleto proprio) e ferimentos.
+ */
+UCLASS()
+class EMPIRESATWAR_API AEAWCharacter : public ACharacter
+{
+	GENERATED_BODY()
+
+public:
+	AEAWCharacter();
+
+	virtual void BeginPlay() override;
+	virtual void PawnClientRestart() override;
+
+	// ---------- Bracos de 1a pessoa ----------
+	/** Inclinacao para cima dos bracos de 1a pessoa em relacao a camera (graus). Teste: -EAWFPPitch= */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "1a pessoa")
+	float FPPitch = 14.f;
+
+	/** Deslocamento dos bracos em relacao a camera (cm; X frente, Z cima). Teste: -EAWFPX= -EAWFPZ= */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "1a pessoa")
+	FVector FPOffset = FVector(-14.f, 10.f, 14.f);   // testado 2026-11-24: ombro atras da camera, sabre a direita
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "1a pessoa")
+	float FPFieldOfView = 95.f;
+	virtual void Tick(float DeltaSeconds) override;
+	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	UMeleeCombatComponent* GetCombat() const { return Combat; }
+	UWoundComponent* GetWounds() const { return Wounds; }
+
+	/** Velocidades iguais as das animacoes (senao o pe escorrega). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movimento")
+	float WalkSpeed = 140.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movimento")
+	float SprintSpeed = 400.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movimento")
+	float BackSpeedScale = 100.f / 140.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movimento")
+	float SideSpeedScale = 85.f / 140.f;
+
+	/** Mostra as hitboxes (cabeca, pescoco, tronco, bracos, pernas). Tecla H. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
+	bool bShowHitboxes = true;
+
+	/** Volta todos os soldados ao estado inicial (console: EAWReset). */
+	UFUNCTION(Exec)
+	void EAWReset();
+
+	/** Cria um bot de treino na sua frente (console: EAWBot). */
+	UFUNCTION(Exec)
+	void EAWBot();
+
+	/** Mostra/esconde as hitboxes deste soldado. */
+	void SetShowHitboxes(bool bShow);
+
+protected:
+	// Componentes
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Componentes")
+	USceneComponent* AimRoot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Componentes")
+	UCameraComponent* Camera;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Componentes")
+	USceneComponent* WeaponPivot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Componentes")
+	UStaticMeshComponent* WeaponMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Componentes")
+	UStaticMeshComponent* BodyMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Componentes")
+	UMeleeCombatComponent* Combat;
+
+	/** Copia do soldado presa a camera, vista so pelo dono (bracos + sabre). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Componentes")
+	class USkeletalMeshComponent* FirstPersonMesh;
+
+	void SetupFirstPerson();
+	bool bFirstPersonActive = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Componentes")
+	UWoundComponent* Wounds;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Hitboxes")
+	TArray<UCapsuleComponent*> Hitboxes;
+
+	// Entrada
+	void MoveForward(float Value);
+	void MoveRight(float Value);
+	void StartSprint();
+	void StopSprint();
+	void InputSlash();
+	void InputOverhead();
+	void InputStab();
+	void InputParry();
+	void InputFeint();
+	void InputToggleHitboxes();
+	void InputSpawnBot();
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerSetSprint(bool bNewSprint);
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerSpawnBot();
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerResetAll();
+
+	UFUNCTION()
+	void HandleWounded(EBodyRegion Region, float Damage, EWoundLife NewLife);
+
+	void ApplyMovementSpeed();
+	void ApplyLifeVisuals();
+	void ResetSoldier();
+	void DrawDebugHud();
+
+	UCapsuleComponent* MakeHitbox(FName Name, FName RegionTag, float Radius, float HalfHeight, const FVector& Location, const FRotator& Rotation);
+
+	// ---------- Animacoes do sabre (importadas do Blender) ----------
+	UPROPERTY(EditAnywhere, Category = "Animacao") class UAnimSequence* AnimGuarda = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao") class UAnimSequence* AnimCorteEsq = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao") class UAnimSequence* AnimCorteDir = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao") class UAnimSequence* AnimDeCima = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao") class UAnimSequence* AnimEstocada = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao") class UAnimSequence* AnimParry = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao") class UAnimSequence* AnimBloqueado = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao") class UAnimSequence* AnimFinta = nullptr;
+
+	// Movimento (pernas)
+	UPROPERTY(EditAnywhere, Category = "Animacao|Movimento") class UAnimSequence* AnimAndarFrente = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|Movimento") class UAnimSequence* AnimAndarTras = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|Movimento") class UAnimSequence* AnimAndarEsq = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|Movimento") class UAnimSequence* AnimAndarDir = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|Movimento") class UAnimSequence* AnimCorrer = nullptr;
+
+	// Versoes de 1a pessoa (bracos presos a camera). Se faltar, os bracos usam a de corpo inteiro.
+	UPROPERTY(EditAnywhere, Category = "Animacao|1a pessoa") class UAnimSequence* AnimCorteEsqFP = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|1a pessoa") class UAnimSequence* AnimCorteDirFP = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|1a pessoa") class UAnimSequence* AnimDeCimaFP = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|1a pessoa") class UAnimSequence* AnimParryFP = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|1a pessoa") class UAnimSequence* AnimBloqueadoFP = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|1a pessoa") class UAnimSequence* AnimFintaFP = nullptr;
+
+	/** true quando o esqueleto e as animacoes foram encontrados. */
+	bool bAnimated = false;
+
+	UFUNCTION()
+	void HandleCombatState(EMeleeState NewState, EAttackDirection Direction);
+
+	/** Toca o trecho [Start, End] (s) da animacao em exatamente Duration segundos. */
+	void PlaySegment(class UAnimSequence* Anim, float Start, float End, float Duration, bool bLoop, class UAnimSequence* FPAnim = nullptr);
+
+	void StartRagdoll();
+
+	// ---------- Peso e fisica ----------
+	/** Giro maximo da camera (graus/s) durante preparacao e golpe - o golpe "compromete" o corpo. */
+	UPROPERTY(EditAnywhere, Category = "Peso") float TurnCapWindup = 220.f;
+	UPROPERTY(EditAnywhere, Category = "Peso") float TurnCapRelease = 110.f;
+	/** Passo a frente no inicio do golpe (cm/s). */
+	UPROPERTY(EditAnywhere, Category = "Peso") float LungeSlash = 160.f;
+	UPROPERTY(EditAnywhere, Category = "Peso") float LungeStab = 240.f;
+
+	void TurnInput(float Value);
+	void LookUpInput(float Value);
+
+	UFUNCTION()
+	void HandleImpact(FVector Location, EBodyRegion Region, bool bParried, AActor* Victim);
+
+	/** Reacao a um golpe recebido: empurrao, tronco com fisica por um instante, tremor de camera. */
+	void ReactToHit(const FVector& Dir, bool bParried, float Strength);
+	void AddTrauma(float Amount) { Trauma = FMath::Min(1.f, Trauma + Amount); }
+	static void HitStop(AActor* Actor, float Seconds);
+	void UpdateFeel(float DeltaSeconds);
+
+	float Trauma = 0.f;             // tremor de camera (0..1), cai com o tempo
+	float HitReactAlpha = 0.f;      // fisica do tronco (0..1), cai com o tempo
+	FVector LastHitDir = FVector::ZeroVector;
+	float ShakeTime = 0.f;
+
+	// ---------- Sangue e desmembramento ----------
+public:
+	/** Vermelho na tela do dono quando e atingido (0..1). Lido pelo AEAWHUD. */
+	float GetDamageFlash() const { return DamageFlash; }
+
+	/** Registra o golpe recebido (todas as maquinas); se o soldado caiu, tenta desmembrar. */
+	void NoteHit(EBodyRegion Region, const FVector& Location, const FVector& Dir, bool bAllowDismember = true);
+
+	// ---------- Armas ----------
+	virtual void PossessedBy(AController* NewController) override;
+	UEAWFirearmComponent* GetFirearm() const { return Firearm; }
+	EEAWWeapon GetWeapon() const { return CurrentWeapon; }
+	bool IsBayonetMode() const { return bBayonet; }
+	/** Servidor: troca a arma na mao (sabre/mosquete). */
+	void EquipWeapon(EEAWWeapon NewWeapon);
+	/** Dono: origem (olho) e direcao do tiro, com o balanco da arma e o desvio do cano liso. */
+	void GetShotAim(FVector& Origin, FVector& Dir);
+	/** Todas as maquinas: clarao, fumaca, coice. */
+	void PlayShotEffects(const FVector& Dir);
+	/** Todas as maquinas: ferida de bala no corpo, sangue, reacao ou queda. */
+	void ReceiveBullet(const FVector& Location, const FVector& Dir, FName Bone, float EnergyJ, EBodyRegion Region);
+
+protected:
+	/** Pecas soltas (mesmo esqueleto do soldado, so os vertices do membro). */
+	UPROPERTY(EditAnywhere, Category = "Sangue") class USkeletalMesh* PecaCabeca = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Sangue") class USkeletalMesh* PecaBracoE = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Sangue") class USkeletalMesh* PecaBracoD = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Sangue") class USkeletalMesh* PecaPernaE = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Sangue") class USkeletalMesh* PecaPernaD = nullptr;
+	UPROPERTY() class UStaticMesh* CapMesh = nullptr;
+	UPROPERTY() class UMaterialInterface* CapMaterial = nullptr;
+
+	/** Componentes criados pelo desmembramento (pecas e tampas de sangue), apagados no reset. */
+	UPROPERTY() TArray<UPrimitiveComponent*> GoreComponents;
+
+	void TryDismember();
+	void ClearGore();
+	void AddCap(USceneComponent* Parent, FName Bone, const FVector& Point, const FVector& Dir, float Diameter);
+
+	bool bDismemberAllowed = true;
+	int32 WoundMarks = 0;
+
+	// ---------- Mosquete ----------
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Componentes") UEAWFirearmComponent* Firearm;
+	/** Arma vista pelos outros (segue o corpo) e pelo dono (segue os bracos de 1a pessoa). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Componentes") USkeletalMeshComponent* WeaponTP;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Componentes") USkeletalMeshComponent* WeaponFP;
+	UPROPERTY(EditAnywhere, Category = "Armas") class USkeletalMesh* MeshMosquete = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Armas") class USkeletalMesh* MeshSabre = nullptr;
+
+	UPROPERTY(ReplicatedUsing = OnRep_Weapon) EEAWWeapon CurrentWeapon = EEAWWeapon::Sabre;
+	UPROPERTY(ReplicatedUsing = OnRep_Weapon) bool bBayonet = false;
+	UFUNCTION() void OnRep_Weapon();
+	void ApplyWeaponVisuals();
+	void ApplyFirstPersonLayout();
+	/** Arma presa a mao (ragdoll) ou de volta ao esqueleto. */
+	void AttachWeaponToHand(USceneComponent* HandOwner);
+	void AttachWeaponToSkeleton();
+
+	UPROPERTY(EditAnywhere, Category = "Animacao|Mosquete") class UAnimSequence* AnimMGuarda = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|Mosquete") class UAnimSequence* AnimMErguer = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|Mosquete") class UAnimSequence* AnimMMira = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|Mosquete") class UAnimSequence* AnimMTiro = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|Mosquete") class UAnimSequence* AnimMBaixar = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|Mosquete") class UAnimSequence* AnimMRecarga = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|Mosquete") class UAnimSequence* AnimMGuardaFP = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|Mosquete") class UAnimSequence* AnimMErguerFP = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|Mosquete") class UAnimSequence* AnimMMiraFP = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|Mosquete") class UAnimSequence* AnimMTiroFP = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|Mosquete") class UAnimSequence* AnimMBaixarFP = nullptr;
+	UPROPERTY(EditAnywhere, Category = "Animacao|Mosquete") class UAnimSequence* AnimMRecargaFP = nullptr;
+
+	UFUNCTION() void HandleFirearmState(EFirearmState NewState, uint8 Stage);
+
+	/** Ao mirar, a camera vai ao olho direito sobre a coronha (medido no Blender: 9,4 cm a frente, 5,6 a direita, 2,8 acima). */
+	UPROPERTY(EditAnywhere, Category = "Mosquete") FVector AimEyeOffset = FVector(9.4f, 5.6f, 4.5f);   // +1,7 cm acima do olho medido: o alvo fica livre por cima do cano
+	/** Campo de visao com o olho na mira (foco). */
+	UPROPERTY(EditAnywhere, Category = "Mosquete") float AimFieldOfView = 65.f;
+	FTransform FPBase = FTransform::Identity;   // encaixe dos bracos de 1a pessoa (sem o balanco da mira)
+	float AimAlpha = 0.f;
+	float AimHoldTime = 0.f;
+	FRotator SwayRot = FRotator::ZeroRotator;
+	FRotator RecoilPending = FRotator::ZeroRotator;
+	void UpdateFirearmView(float DeltaSeconds);
+
+	void InputAimReleased();
+	void InputReload();
+	void InputToggleMelee();
+	void InputWeapon1();
+	void InputWeapon2();
+	UFUNCTION(Server, Reliable) void ServerEquip(EEAWWeapon NewWeapon);
+	UFUNCTION(Server, Reliable) void ServerSetBayonet(bool bNew);
+	bool UsingMusketFire() const { return CurrentWeapon == EEAWWeapon::Mosquete && !bBayonet; }
+
+	EBodyRegion LastHitRegion = EBodyRegion::None;
+	FVector LastHitLocation = FVector::ZeroVector;
+	float LastHitTime = -100.f;
+	FName CutBone = NAME_None;
+	float DamageFlash = 0.f;
+
+	UPROPERTY(Replicated)
+	bool bSprinting = false;
+
+	FVector BodyMeshBaseLocation = FVector::ZeroVector;
+};
