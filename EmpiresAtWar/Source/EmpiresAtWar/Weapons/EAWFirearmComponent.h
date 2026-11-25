@@ -36,6 +36,8 @@ public:
 	void RequestCancel();
 	/** Volta ao inicio: carregado, em guarda. */
 	void ResetFirearm();
+	/** Servidor: arma pega do chao vem carregada ou nao. */
+	void SetLoaded(bool bInLoaded);
 
 	EFirearmState GetState() const { return Rep.State; }
 	uint8 GetStage() const { return Rep.Stage; }

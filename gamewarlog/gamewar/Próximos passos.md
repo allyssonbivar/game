@@ -46,5 +46,7 @@ atualizado: 2026-11-25
 - [ ] Atualizar os PDFs para 150 x 150
 - [ ] Ver a recarga completa em jogo e a ferida de bala de perto
 - [ ] Animações próprias para faca (empunhadura curta) e machado (golpe de cima pesado) — hoje usam as do sabre
-- [ ] Pegar armas do chão (pickup) e troca com "desce/sobe" (~0,5 s)
+- [x] Pegar armas do chão (F, 3 s, barra) e troca "desce/sobe" (2026-11-25); 2 armas por soldado
 - [ ] Desligar o desenho de depuração da lâmina (linha amarela) fora dos testes
+- [ ] **Pistola** (arma de fogo da vaga 1): modelo, animações de uma mão (mira, tiro, recarga) e balística própria
+- [ ] Arma no chão: brilho/contorno quando estiver na mira (hoje só o aviso)

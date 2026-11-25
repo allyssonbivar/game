@@ -320,9 +320,40 @@ protected:
 	void InputToggleMelee();
 	void InputWeapon1();
 	void InputWeapon2();
-	void InputWeapon3();
-	void InputWeapon4();
 	UFUNCTION(Server, Reliable) void ServerEquip(EEAWWeapon NewWeapon);
+
+	// ---------- Duas armas: 1 de fogo (mosquete/pistola) + 1 de corpo a corpo (sabre/faca/machado) ----------
+	UPROPERTY(Replicated) EEAWWeapon PrimaryWeapon = EEAWWeapon::Mosquete;
+	UPROPERTY(Replicated) EEAWWeapon SecondaryWeapon = EEAWWeapon::Sabre;
+	/** Troca "desce/sobe" em 1a pessoa (~0,4 s, como no Chivalry); bloqueia golpes ate a arma subir. */
+	float SwitchDip = 0.f;
+	EEAWWeapon LastShownWeapon = EEAWWeapon::Sabre;
+	bool IsSwitching() const { return SwitchDip > 0.25f; }
+
+	// ---------- Pegar arma do chao: segurar F por 3 s ----------
+	void InputInteractPressed();
+	void InputInteractReleased();
+	void UpdatePickup(float DeltaSeconds);
+	UFUNCTION(Server, Reliable) void ServerStartPickup(class AEAWDroppedWeapon* Target);
+	UFUNCTION(Server, Reliable) void ServerCancelPickup();
+	void CompletePickup();
+	/** Servidor: larga uma arma no chao (da mao, com a velocidade do corpo). */
+	void DropWeapon(EEAWWeapon W, bool bLoaded, const FVector& ExtraVelocity);
+	TWeakObjectPtr<class AEAWDroppedWeapon> PickupTarget;       // a mais perto/na mira (dono)
+	TWeakObjectPtr<class AEAWDroppedWeapon> PickupHeldTarget;   // a que esta sendo pega (dono)
+	TWeakObjectPtr<class AEAWDroppedWeapon> ServerPickupTarget; // servidor
+	float PickupProgress = 0.f;
+	bool bPickupHeld = false;
+	FTimerHandle PickupTimer;
+public:
+	static bool IsFirearmWeapon(EEAWWeapon W) { return W == EEAWWeapon::Mosquete || W == EEAWWeapon::Pistola; }
+	class AEAWDroppedWeapon* GetPickupTarget() const { return PickupTarget.Get(); }
+	float GetPickupProgress() const { return bPickupHeld ? PickupProgress : 0.f; }
+	EEAWWeapon GetPrimaryWeapon() const { return PrimaryWeapon; }
+	EEAWWeapon GetSecondaryWeapon() const { return SecondaryWeapon; }
+	/** Teste (-EAWAutoPegar): como se apertasse F. */
+	void TestStartPickup() { InputInteractPressed(); }
+protected:
 	UFUNCTION(Server, Reliable) void ServerSetBayonet(bool bNew);
 	bool UsingMusketFire() const { return CurrentWeapon == EEAWWeapon::Mosquete && !bBayonet; }
 	/** Botoes de corpo a corpo valem para sabre, faca, machado e mosquete no modo combate (X). */

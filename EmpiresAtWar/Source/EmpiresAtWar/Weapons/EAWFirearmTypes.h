@@ -11,6 +11,7 @@ enum class EEAWWeapon : uint8
 	Sabre,
 	Faca,
 	Machado,
+	Pistola,   // arma de fogo (modelo, animacoes e tiro: proxima etapa)
 };
 
 /** Estado do mosquete (tiro). */

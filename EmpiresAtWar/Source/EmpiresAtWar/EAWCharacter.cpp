@@ -24,6 +24,7 @@
 #include "Effects/EAWBloodFX.h"
 #include "Effects/EAWSmokeFX.h"
 #include "Weapons/EAWFirearmComponent.h"
+#include "Weapons/EAWDroppedWeapon.h"
 #include "AnimationRuntime.h"
 #include "Materials/MaterialInterface.h"
 #include "PhysicsEngine/ConstraintInstance.h"
@@ -289,6 +290,8 @@ void AEAWCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 	DOREPLIFETIME(AEAWCharacter, bSprinting);
 	DOREPLIFETIME(AEAWCharacter, CurrentWeapon);
 	DOREPLIFETIME(AEAWCharacter, bBayonet);
+	DOREPLIFETIME(AEAWCharacter, PrimaryWeapon);
+	DOREPLIFETIME(AEAWCharacter, SecondaryWeapon);
 }
 
 void AEAWCharacter::Tick(float DeltaSeconds)
@@ -315,6 +318,7 @@ void AEAWCharacter::Tick(float DeltaSeconds)
 	UpdateFeel(DeltaSeconds);
 	UpdateFirearmView(DeltaSeconds);
 	UpdateBodyTurn(DeltaSeconds);
+	UpdatePickup(DeltaSeconds);
 
 	if (IsLocallyControlled() && IsPlayerControlled())
 	{
@@ -349,8 +353,8 @@ void AEAWCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAction("ToggleMelee", IE_Pressed, this, &AEAWCharacter::InputToggleMelee);
 	PlayerInputComponent->BindAction("Weapon1", IE_Pressed, this, &AEAWCharacter::InputWeapon1);
 	PlayerInputComponent->BindAction("Weapon2", IE_Pressed, this, &AEAWCharacter::InputWeapon2);
-	PlayerInputComponent->BindAction("Weapon3", IE_Pressed, this, &AEAWCharacter::InputWeapon3);
-	PlayerInputComponent->BindAction("Weapon4", IE_Pressed, this, &AEAWCharacter::InputWeapon4);
+	PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &AEAWCharacter::InputInteractPressed);
+	PlayerInputComponent->BindAction("Interact", IE_Released, this, &AEAWCharacter::InputInteractReleased);
 	PlayerInputComponent->BindAction("Feint", IE_Pressed, this, &AEAWCharacter::InputFeint);
 	PlayerInputComponent->BindAction("ToggleHitboxes", IE_Pressed, this, &AEAWCharacter::InputToggleHitboxes);
 	PlayerInputComponent->BindAction("SpawnBot", IE_Pressed, this, &AEAWCharacter::InputSpawnBot);
@@ -404,11 +408,12 @@ void AEAWCharacter::ServerSetSprint_Implementation(bool bNewSprint) { bSprinting
 // Tecla X: alterna entre tiro e combate com o mosquete (baioneta/coronha). 1 = mosquete, 2 = sabre.
 void AEAWCharacter::InputSlash()
 {
+	if (IsSwitching()) return;
 	if (UsingMusketFire()) { Firearm->RequestFire(); return; }
 	if (UsesMeleeInput()) Combat->RequestSlash();
 }
-void AEAWCharacter::InputOverhead() { if (UsesMeleeInput()) Combat->RequestAttack(EAttackDirection::Overhead); }
-void AEAWCharacter::InputStab()     { if (UsesMeleeInput()) Combat->RequestAttack(EAttackDirection::Stab); }
+void AEAWCharacter::InputOverhead() { if (UsesMeleeInput() && !IsSwitching()) Combat->RequestAttack(EAttackDirection::Overhead); }
+void AEAWCharacter::InputStab()     { if (UsesMeleeInput() && !IsSwitching()) Combat->RequestAttack(EAttackDirection::Stab); }
 void AEAWCharacter::InputParry()
 {
 	if (UsingMusketFire()) { Firearm->RequestAim(true); return; }
@@ -425,11 +430,17 @@ void AEAWCharacter::InputToggleMelee()
 		ServerSetBayonet(!bBayonet);
 	}
 }
-void AEAWCharacter::InputWeapon1() { ServerEquip(EEAWWeapon::Mosquete); }
-void AEAWCharacter::InputWeapon2() { ServerEquip(EEAWWeapon::Sabre); }
-void AEAWCharacter::InputWeapon3() { ServerEquip(EEAWWeapon::Faca); }
-void AEAWCharacter::InputWeapon4() { ServerEquip(EEAWWeapon::Machado); }
-void AEAWCharacter::ServerEquip_Implementation(EEAWWeapon NewWeapon) { EquipWeapon(NewWeapon); }
+// 1 = arma de fogo, 2 = arma de corpo a corpo (o soldado so carrega duas).
+void AEAWCharacter::InputWeapon1() { ServerEquip(PrimaryWeapon); }
+void AEAWCharacter::InputWeapon2() { ServerEquip(SecondaryWeapon); }
+void AEAWCharacter::ServerEquip_Implementation(EEAWWeapon NewWeapon)
+{
+	// So troca entre as duas que carrega.
+	if ((NewWeapon == PrimaryWeapon || NewWeapon == SecondaryWeapon) && NewWeapon != CurrentWeapon && Wounds->CanFight())
+	{
+		EquipWeapon(NewWeapon);
+	}
+}
 void AEAWCharacter::ServerSetBayonet_Implementation(bool bNew)
 {
 	bBayonet = bNew;
@@ -889,8 +900,12 @@ void AEAWCharacter::StartRagdoll()
 		Camera->SetRelativeLocation(FVector::ZeroVector);
 		Camera->SetFieldOfView(FPFieldOfView);
 	}
-	// A arma fica na mao do morto (o osso da arma nao tem corpo fisico).
-	AttachWeaponToHand(GetMesh());
+	// O morto larga a arma da mao: ela cai com fisica e pode ser pega por outro soldado (F).
+	WeaponTP->SetVisibility(false);
+	if (HasAuthority())
+	{
+		DropWeapon(CurrentWeapon, CurrentWeapon != EEAWWeapon::Mosquete || Firearm->IsLoaded(), LastHitDir * 150.f);
+	}
 	// Limpa a fisica parcial do tronco e a trava de tempo antes de virar ragdoll (senao o corpo "voa").
 	CustomTimeDilation = 1.f;
 	if (HitReactAlpha > 0.f)
@@ -1036,7 +1051,7 @@ void AEAWCharacter::TryDismember()
 	Body->HideBoneByName(Bone, EPhysBodyOp::PBO_Term);
 	if (Bone == TEXT("upperarm_r"))
 	{
-		AttachWeaponToHand(Piece);   // a arma vai junto com o braco direito
+		// (a arma ja caiu da mao ao morrer)
 	}
 
 	// 3) Tampas vermelhas nos dois lados do corte e jatos de sangue pulsando.
@@ -1247,8 +1262,10 @@ void AEAWCharacter::PossessedBy(AController* NewController)
 	{
 		FString Arma;
 		FParse::Value(FCommandLine::Get(), TEXT("EAWArma="), Arma);
-		EquipWeapon(Arma == TEXT("Sabre") ? EEAWWeapon::Sabre : Arma == TEXT("Faca") ? EEAWWeapon::Faca
-			: Arma == TEXT("Machado") ? EEAWWeapon::Machado : EEAWWeapon::Mosquete);
+		// Duas armas: mosquete + uma de corpo a corpo (padrao sabre). -EAWArma=Faca|Machado|Sabre comeca com ela na mao.
+		const EEAWWeapon Melee = Arma == TEXT("Faca") ? EEAWWeapon::Faca : Arma == TEXT("Machado") ? EEAWWeapon::Machado : EEAWWeapon::Sabre;
+		if (Arma.IsEmpty()) { EquipWeapon(Melee); EquipWeapon(EEAWWeapon::Mosquete); }
+		else { EquipWeapon(EEAWWeapon::Mosquete); EquipWeapon(Melee); }
 		if (CurrentWeapon == EEAWWeapon::Mosquete && FParse::Param(FCommandLine::Get(), TEXT("EAWBaioneta")))
 		{
 			bBayonet = true;   // teste: comeca no modo combate (como se tivesse apertado X)
@@ -1269,6 +1286,7 @@ void AEAWCharacter::PossessedBy(AController* NewController)
 		++BotCount;
 		const EEAWWeapon W = Arma == TEXT("Mosquete") ? EEAWWeapon::Mosquete : Arma == TEXT("Faca") ? EEAWWeapon::Faca
 			: Arma == TEXT("Machado") ? EEAWWeapon::Machado : EEAWWeapon::Sabre;
+		EquipWeapon(EEAWWeapon::Mosquete);   // todo soldado tem o mosquete
 		EquipWeapon(W);
 		if (W == EEAWWeapon::Mosquete)
 		{
@@ -1289,6 +1307,9 @@ void AEAWCharacter::EquipWeapon(EEAWWeapon NewWeapon)
 		Firearm->RequestCancel();
 	}
 	CurrentWeapon = NewWeapon;
+	// A arma em uso ocupa a vaga dela: fogo (mosquete/pistola) ou corpo a corpo (sabre/faca/machado).
+	if (IsFirearmWeapon(NewWeapon)) PrimaryWeapon = NewWeapon; else SecondaryWeapon = NewWeapon;
+	Combat->ResetCombat();
 	bBayonet = false;
 	OnRep_Weapon();
 	UE_LOG(LogEAWCombat, Log, TEXT("%s arma: %s"), *GetName(), NewWeapon == EEAWWeapon::Mosquete ? TEXT("mosquete") : NewWeapon == EEAWWeapon::Faca ? TEXT("faca") : NewWeapon == EEAWWeapon::Machado ? TEXT("machado") : TEXT("sabre"));
@@ -1296,12 +1317,17 @@ void AEAWCharacter::EquipWeapon(EEAWWeapon NewWeapon)
 
 void AEAWCharacter::OnRep_Weapon()
 {
+	if (CurrentWeapon != LastShownWeapon)
+	{
+		if (IsLocallyControlled()) SwitchDip = 1.f;   // a nova arma sobe de baixo da tela
+		LastShownWeapon = CurrentWeapon;
+	}
 	ApplyWeaponVisuals();
 }
 
 void AEAWCharacter::ApplyWeaponVisuals()
 {
-	USkeletalMesh* M = CurrentWeapon == EEAWWeapon::Mosquete ? MeshMosquete : CurrentWeapon == EEAWWeapon::Faca ? MeshFaca
+	USkeletalMesh* M = CurrentWeapon == EEAWWeapon::Pistola ? nullptr : CurrentWeapon == EEAWWeapon::Mosquete ? MeshMosquete : CurrentWeapon == EEAWWeapon::Faca ? MeshFaca
 		: CurrentWeapon == EEAWWeapon::Machado ? MeshMachado : MeshSabre;
 	ApplyWeaponCombatConfig();
 	if (M && WeaponTP->SkeletalMesh != M)
@@ -1388,6 +1414,7 @@ void AEAWCharacter::AttachWeaponToSkeleton()
 	WeaponTP->SetRelativeTransform(FTransform::Identity);
 	WeaponTP->SetMasterPoseComponent(GetMesh(), true);   // forca: trocar a malha exige refazer o mapa de ossos
 	WeaponTP->SetOwnerNoSee(bFirstPersonActive);
+	WeaponTP->SetVisibility(true);
 	ApplyWeaponVisuals();
 }
 
@@ -1489,7 +1516,10 @@ void AEAWCharacter::UpdateFirearmView(float Dt)
 	// Os bracos e a arma giram em volta do olho (a linha do cano continua passando pelo olho);
 	// por cima, o atraso do giro e o balanco do passo.
 	const FVector Eye = AimEyeOffset * A;
-	FirstPersonMesh->SetRelativeTransform(FPBase * FTransform(ViewLag, ViewBob) * FTransform(-Eye) * FTransform(SwayRot) * FTransform(Eye));
+	SwitchDip = FMath::Max(0.f, SwitchDip - Dt / 0.4f);
+	const float Dip = FMath::Sin(SwitchDip * PI * 0.5f);   // cai rapido, sobe suave
+	FirstPersonMesh->SetRelativeTransform(FPBase * FTransform(ViewLag + FRotator(-25.f * Dip, 0.f, 0.f), ViewBob + FVector(0.f, 0.f, -35.f * Dip))
+		* FTransform(-Eye) * FTransform(SwayRot) * FTransform(Eye));
 
 	// Coice: a camera sobe em ~0,1 s.
 	if (!RecoilPending.IsNearlyZero(0.01f) && Controller)
@@ -1681,4 +1711,133 @@ void AEAWCharacter::ApplyWeaponCombatConfig()
 		break;
 	}
 	Combat->DefaultConfig = C;
+}
+
+// ---------------------------------------------------------------------------
+// Pegar arma do chao: olhar para ela perto (ate 2,2 m), segurar F por 3 s. A nova ocupa a vaga
+// do mesmo tipo (fogo ou corpo a corpo) e a antiga cai no chao.
+// ---------------------------------------------------------------------------
+
+static const float PickupRange = 220.f;
+static const float PickupTime = 3.f;
+
+void AEAWCharacter::UpdatePickup(float Dt)
+{
+	if (!IsLocallyControlled() || !IsPlayerControlled() || !Wounds->CanFight())
+	{
+		PickupTarget = nullptr;
+		bPickupHeld = false;
+		return;
+	}
+	// A arma no chao mais perto do centro da visao.
+	const FVector Eye = Camera->GetComponentLocation();
+	const FVector View = Camera->GetForwardVector();
+	AEAWDroppedWeapon* Best = nullptr;
+	float BestScore = -1.f;
+	for (TActorIterator<AEAWDroppedWeapon> It(GetWorld()); It; ++It)
+	{
+		const FVector To = It->GetActorLocation() - Eye;
+		const float Dist = To.Size();
+		if (Dist > PickupRange)
+		{
+			continue;
+		}
+		const float Dot = FVector::DotProduct(To / FMath::Max(1.f, Dist), View);
+		if (Dot < 0.55f && Dist > 110.f)
+		{
+			continue;
+		}
+		const float Score = Dot - Dist / 1000.f;
+		if (Score > BestScore)
+		{
+			BestScore = Score;
+			Best = *It;
+		}
+	}
+	PickupTarget = Best;
+	if (bPickupHeld)
+	{
+		if (!PickupHeldTarget.IsValid() || PickupHeldTarget.Get() != Best)
+		{
+			InputInteractReleased();   // saiu de perto ou olhou para outra: cancela
+			return;
+		}
+		PickupProgress = FMath::Min(1.f, PickupProgress + Dt / PickupTime);
+	}
+}
+
+void AEAWCharacter::InputInteractPressed()
+{
+	if (!PickupTarget.IsValid() || !Wounds->CanFight())
+	{
+		return;
+	}
+	bPickupHeld = true;
+	PickupProgress = 0.f;
+	PickupHeldTarget = PickupTarget;
+	ServerStartPickup(PickupTarget.Get());
+}
+
+void AEAWCharacter::InputInteractReleased()
+{
+	if (bPickupHeld)
+	{
+		bPickupHeld = false;
+		PickupProgress = 0.f;
+		PickupHeldTarget = nullptr;
+		ServerCancelPickup();
+	}
+}
+
+void AEAWCharacter::ServerStartPickup_Implementation(AEAWDroppedWeapon* Target)
+{
+	if (!Target || FVector::Dist(Target->GetActorLocation(), GetActorLocation()) > PickupRange + 120.f)
+	{
+		return;
+	}
+	ServerPickupTarget = Target;
+	GetWorldTimerManager().SetTimer(PickupTimer, this, &AEAWCharacter::CompletePickup, PickupTime, false);
+}
+
+void AEAWCharacter::ServerCancelPickup_Implementation()
+{
+	ServerPickupTarget = nullptr;
+	GetWorldTimerManager().ClearTimer(PickupTimer);
+}
+
+void AEAWCharacter::CompletePickup()
+{
+	AEAWDroppedWeapon* Target = ServerPickupTarget.Get();
+	ServerPickupTarget = nullptr;
+	if (!Target || !Wounds->CanFight() || FVector::Dist(Target->GetActorLocation(), GetActorLocation()) > PickupRange + 120.f)
+	{
+		return;
+	}
+	const EEAWWeapon New = Target->GetWeapon();
+	const bool bNewLoaded = Target->IsLoaded();
+	const EEAWWeapon Old = IsFirearmWeapon(New) ? PrimaryWeapon : SecondaryWeapon;
+	// A antiga cai no chao (o mosquete leva junto se estava carregado).
+	const bool bOldLoaded = Old != EEAWWeapon::Mosquete || Firearm->IsLoaded();
+	Target->Destroy();
+	DropWeapon(Old, bOldLoaded, GetActorForwardVector() * 80.f);
+	EquipWeapon(New);
+	if (New == EEAWWeapon::Mosquete)
+	{
+		Firearm->SetLoaded(bNewLoaded);
+	}
+	UE_LOG(LogEAWCombat, Log, TEXT("%s pegou %s e largou %s"), *GetName(), *AEAWDroppedWeapon::WeaponName(New).ToString(),
+		*AEAWDroppedWeapon::WeaponName(Old).ToString());
+}
+
+void AEAWCharacter::DropWeapon(EEAWWeapon W, bool bLoaded, const FVector& ExtraVelocity)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+	// Sai da mao, na posicao do osso da arma (o mosquete pelo osso proprio; as outras pela mao).
+	const FName Bone = W == EEAWWeapon::Mosquete && W == CurrentWeapon ? FName(TEXT("arma")) : FName(TEXT("weapon_r"));
+	FTransform At = GetMesh()->GetSocketTransform(Bone);
+	At.SetScale3D(FVector::OneVector);
+	AEAWDroppedWeapon::Drop(GetWorld(), W, At, GetVelocity() + ExtraVelocity + FVector(0.f, 0.f, 60.f), bLoaded);
 }

@@ -3,6 +3,7 @@
 #include "EAWBotController.h"
 #include "EAWHUD.h"
 #include "Weapons/EAWFirearmComponent.h"
+#include "Weapons/EAWDroppedWeapon.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
 #include "Components/StaticMeshComponent.h"
@@ -65,6 +66,24 @@ void AEAWGameMode::HandleStartingNewPlayer_Implementation(APlayerController* New
 	{
 		AutoPC = NewPlayer;
 		GetWorldTimerManager().SetTimer(AutoTimer, this, &AEAWGameMode::AutoAttack, 1.8f, true, 0.6f);
+	}
+
+	// -EAWArmasNoChao: faca e machado no chao a frente do jogador; -EAWAutoPegar: segura F sozinho depois de 1,5 s.
+	if (FParse::Param(Cmd, TEXT("EAWArmasNoChao")) && NewPlayer && NewPlayer->GetPawn())
+	{
+		const APawn* P = NewPlayer->GetPawn();
+		const FVector F = P->GetActorForwardVector(), R = P->GetActorRightVector(), Base = P->GetActorLocation() - FVector(0.f, 0.f, 60.f);
+		AEAWDroppedWeapon::Drop(GetWorld(), EEAWWeapon::Faca, FTransform(FRotator(0.f, 30.f, 0.f), Base + F * 120.f - R * 10.f), FVector::ZeroVector, true);
+		AEAWDroppedWeapon::Drop(GetWorld(), EEAWWeapon::Machado, FTransform(FRotator(0.f, 80.f, 0.f), Base + F * 160.f + R * 120.f), FVector::ZeroVector, true);
+		if (FParse::Param(Cmd, TEXT("EAWAutoPegar")))
+		{
+			TWeakObjectPtr<AEAWCharacter> Soldier = Cast<AEAWCharacter>(NewPlayer->GetPawn());
+			FTimerHandle H;
+			GetWorldTimerManager().SetTimer(H, FTimerDelegate::CreateLambda([Soldier]()
+			{
+				if (Soldier.IsValid()) Soldier->TestStartPickup();
+			}), 1.5f, false);
+		}
 	}
 
 	if (FParse::Param(Cmd, TEXT("EAWAutoTiro")) && NewPlayer)

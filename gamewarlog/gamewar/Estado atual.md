@@ -134,7 +134,9 @@ Todas começam e terminam na guarda. Golpes aceleram até o impacto (ease-in) e 
 - Andar usa a direção da câmera (não a do corpo).
 
 ## Armas (2026-11-25)
-- Teclas: **1 mosquete, 2 sabre, 3 faca, 4 machado**. **X** alterna o mosquete entre tiro e combate.
+- **Regra (decisão do usuário, 2026-11-25): o soldado carrega só 2 armas** — 1 de fogo (mosquete ou pistola) + 1 de corpo a corpo (sabre, faca ou machado). **1** = arma de fogo, **2** = corpo a corpo (troca "desce/sobe" de ~0,4 s, sem golpe até subir). **X** alterna o mosquete entre tiro e combate.
+- **Pegar do chão:** olhar para a arma a até 2,2 m → aviso "Segure [F] para pegar: … / larga: …" + barra; **segurar F por 3 s**. A nova ocupa a vaga do mesmo tipo e a antiga cai no chão (com física). Soltar F, olhar para outra ou se afastar cancela. Mosquete largado guarda se estava carregado.
+- **Ao morrer**, o soldado larga a arma da mão (cai com física e pode ser pega).
 - **Mosquete no combate (X):** botão esquerdo = coronhada (atordoa, dano 38), E/roda cima = estocada longa (alcance ~2,1 m, mão esquerda solta, dano 62), C/roda baixo = estocada (~1,9 m, 55), direito = aparo (à direita ou à esquerda conforme o golpe do inimigo), Q = finta. Animações a partir da imagem "Exercice de la baïonnette". A coronhada fere com a coronha; as estocadas com a baioneta.
 - **Faca** (lâmina 20 cm, golpes 30% mais rápidos) e **machado de sapador** (cabo 70 cm, corta com a cabeça, 20% mais lento, dano alto) usam as animações de uma mão do sabre com tempos/dano próprios.
 - **Tiro testado em jogo:** clarão, coice, fumaça translúcida (~6 s), bala acerta e fere (bug #48).

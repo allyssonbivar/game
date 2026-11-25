@@ -277,3 +277,16 @@ void UEAWFirearmComponent::MulticastBallImpact_Implementation(FVector_NetQuantiz
 		AEAWSmokeFX::Dust(GetWorld(), Location, Dir);
 	}
 }
+
+void UEAWFirearmComponent::SetLoaded(bool bInLoaded)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority())
+	{
+		return;
+	}
+	bWantAim = false;
+	bReloadAfterLower = false;
+	SavedStage = 0;
+	Rep.bLoaded = bInLoaded;
+	SetState(EFirearmState::Lowered, 0, 0.f);
+}
