@@ -4,6 +4,7 @@
 #include "BonePose.h"
 #include "EAWCharacter.h"
 #include "Combat/MeleeCombatComponent.h"
+#include "Weapons/EAWFirearmComponent.h"
 #include "GameFramework/Pawn.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
@@ -229,6 +230,23 @@ void UEAWAnimInstance::TickValues(float Dt, FEAWAnimFrame& Out)
 	Out.RunWeight = RunWeight;
 	Out.UpperRunWeight = UpperRunWeight;
 	SpringTo(FullBody, FullBodyVel, Seg.bFullBody ? 1.f : 0.f, 20.f, Dt);
+	// Balanco do tronco no passo: cheio andando em guarda, menor atacando/defendendo/recarregando, quase nada mirando.
+	{
+		float Activity = 1.f;
+		if (const AEAWCharacter* Soldier = Cast<AEAWCharacter>(TryGetPawnOwner()))
+		{
+			if (Soldier->GetCombat() && Soldier->GetCombat()->GetState() != EMeleeState::Idle) Activity = 0.35f;
+			if (const UEAWFirearmComponent* Gun = Soldier->GetFirearm())
+			{
+				const EFirearmState FS = Gun->GetState();
+				if (FS == EFirearmState::Aiming || FS == EFirearmState::Raising || FS == EFirearmState::Firing) Activity = 0.15f;
+				else if (FS == EFirearmState::Reloading) Activity = 0.6f;
+			}
+		}
+		const float Target = FMath::Clamp(Speed / 300.f, 0.f, 1.2f) * Activity * (1.f - FullBody) * (1.f - 0.4f * CrouchWeight) * (1.f - 0.6f * UpperRunWeight);
+		SpringTo(SwayW, SwayVel, Target, 8.f, Dt);
+		Out.SwayWeight = FMath::Clamp(SwayW, 0.f, 1.2f) * LocoWeight;
+	}
 	Out.FullBodyWeight = FMath::Clamp(FullBody, 0.f, 1.f);
 	Out.AimYaw = AimYaw;
 	Out.CrouchIdle = CrouchIdle;
@@ -396,65 +414,56 @@ bool FEAWAnimProxy::Evaluate(FPoseContext& Output)
 	}
 	Out.NormalizeRotations();
 
-	// Ossos das armas longas (mosquete e pistola) sao filhos da raiz, nao do corpo: quando o quadril final difere do da
-	// animacao da arma (andando ou agachado), a arma acompanha o quadril - senao as maos (que seguem o corpo) saem dela.
-	if (Pelvis.GetInt() != INDEX_NONE)
+	// Torcao na cintura (mira) + balanco do passo: os ombros giram contra o quadril, o tronco balanca de lado e desce a cada
+	// passo, a cabeca fica estavel. Antes o tronco ficava parado em cima das pernas andando (o ar de robo).
 	{
-		FCSPose<FCompactPose> CombatCS;
-		CombatCS.InitPose(CombatPose.Pose);
-		FCSPose<FCompactPose> FinalCS;
-		FinalCS.InitPose(Out);
-		const FTransform PC = CombatCS.GetComponentSpaceTransform(Pelvis);
-		const FTransform PF = FinalCS.GetComponentSpaceTransform(Pelvis);
-		if (!PC.Equals(PF, 0.05f))
+		auto Idx = [&](const TCHAR* Name) { return Bones.MakeCompactPoseIndex(FMeshPoseBoneIndex(RefSk.FindBoneIndex(Name))); };
+		const FCompactPoseBoneIndex S1 = Idx(TEXT("spine_01")), S2 = Idx(TEXT("spine_02")), Neck = Idx(TEXT("neck_01"));
+		auto RotateCS = [&](FCompactPoseBoneIndex Bone, const FQuat& Q)
 		{
-			const FTransform Delta = PC.Inverse() * PF;
+			if (Bone.GetInt() == INDEX_NONE) return;
+			FCSPose<FCompactPose> CS;
+			CS.InitPose(Out);
+			const FTransform BoneCS = CS.GetComponentSpaceTransform(Bone);
+			const FTransform ParentCS = CS.GetComponentSpaceTransform(Out.GetParentBoneIndex(Bone));
+			FTransform NewCS = BoneCS;
+			NewCS.SetRotation(Q * BoneCS.GetRotation());
+			Out[Bone] = NewCS.GetRelativeTransform(ParentCS);
+		};
+		const float K = Data.SwayWeight;
+		const float Ph = 2.f * PI * Data.WalkPhase01;
+		const float SwayYaw = 5.f * K * FMath::Sin(Ph);              // ombros contra o quadril (um ciclo = 2 passos)
+		const float Roll = 2.f * K * FMath::Sin(Ph + 0.5f * PI);      // tronco pende para o pe que apoia
+		const float Bob = 1.3f * K * FMath::Sin(2.f * Ph);            // inclina um pouco a cada passo
+		const float Yaw = Data.AimYaw + SwayYaw;
+		// Espaco do componente: frente do soldado = +Y, cima = +Z (a malha e girada -90 graus no personagem).
+		if (FMath::Abs(Yaw) > 0.05f) RotateCS(S1, FQuat(FVector::UpVector, FMath::DegreesToRadians(Yaw)));
+		if (K > 0.01f)
+		{
+			RotateCS(S2, FQuat(FVector(0.f, 1.f, 0.f), FMath::DegreesToRadians(Roll)) * FQuat(FVector(1.f, 0.f, 0.f), FMath::DegreesToRadians(Bob)));
+			RotateCS(Neck, FQuat(FVector::UpVector, FMath::DegreesToRadians(-0.7f * SwayYaw)) * FQuat(FVector(0.f, 1.f, 0.f), FMath::DegreesToRadians(-0.6f * Roll)));
+		}
+	}
+
+	// Ossos das armas longas (mosquete e pistola) sao filhos da raiz, nao do corpo: seguem o PEITO (spine_03) como as maos.
+	// Assim andar, agachar, torcer na cintura e o balanco do passo nao tiram a arma das maos.
+	{
+		const FCompactPoseBoneIndex S3 = Bones.MakeCompactPoseIndex(FMeshPoseBoneIndex(RefSk.FindBoneIndex(TEXT("spine_03"))));
+		if (S3.GetInt() != INDEX_NONE)
+		{
+			FCSPose<FCompactPose> CombatCS;
+			CombatCS.InitPose(CombatPose.Pose);
+			FCSPose<FCompactPose> FinalCS;
+			FinalCS.InitPose(Out);
+			const FTransform Delta = CombatCS.GetComponentSpaceTransform(S3).Inverse() * FinalCS.GetComponentSpaceTransform(S3);
 			for (const TCHAR* Name : { TEXT("arma"), TEXT("pistola") })
 			{
 				const int32 MeshIdx = RefSk.FindBoneIndex(Name);
 				if (MeshIdx == INDEX_NONE) continue;
-				const FCompactPoseBoneIndex B = Bones.MakeCompactPoseIndex(FMeshPoseBoneIndex(MeshIdx));
-				if (B.GetInt() == INDEX_NONE) continue;
-				const FTransform NewCS = CombatCS.GetComponentSpaceTransform(B) * Delta;
-				Out[B] = NewCS.GetRelativeTransform(FinalCS.GetComponentSpaceTransform(Out.GetParentBoneIndex(B)));
-			}
-		}
-	}
-
-	// Torcao na cintura: tronco, bracos e a arma longa giram em volta do spine_01 (as pernas ficam).
-	if (FMath::Abs(Data.AimYaw) > 0.5f)
-	{
-		const FReferenceSkeleton& Ref = Bones.GetReferenceSkeleton();
-		const FCompactPoseBoneIndex Spine = Bones.MakeCompactPoseIndex(FMeshPoseBoneIndex(Ref.FindBoneIndex(TEXT("spine_01"))));
-		const int32 ArmaMesh = Ref.FindBoneIndex(TEXT("arma"));
-		if (Spine.GetInt() != INDEX_NONE)
-		{
-			FCSPose<FCompactPose> CS;
-			CS.InitPose(Out);
-			const FQuat Qz(FVector::UpVector, FMath::DegreesToRadians(Data.AimYaw));
-			const FTransform SpineCS = CS.GetComponentSpaceTransform(Spine);
-			const FCompactPoseBoneIndex SpineParent = Out.GetParentBoneIndex(Spine);
-			const FTransform ParentCS = CS.GetComponentSpaceTransform(SpineParent);
-			FTransform NewSpine = SpineCS;
-			NewSpine.SetRotation(Qz * SpineCS.GetRotation());
-			// Ossos das armas presos a raiz (mosquete e pistola) giram junto, em volta do mesmo ponto.
-			TArray<TPair<FCompactPoseBoneIndex, FTransform>> Extra;
-			for (const int32 MeshIdx : { ArmaMesh, Ref.FindBoneIndex(TEXT("pistola")) })
-			{
-				if (MeshIdx == INDEX_NONE) continue;
-				const FCompactPoseBoneIndex B = Bones.MakeCompactPoseIndex(FMeshPoseBoneIndex(MeshIdx));
-				if (B.GetInt() == INDEX_NONE) continue;
-				const FTransform BCS = CS.GetComponentSpaceTransform(B);
-				const FVector P = SpineCS.GetLocation();
-				FTransform NewB = BCS;
-				NewB.SetLocation(P + Qz.RotateVector(BCS.GetLocation() - P));
-				NewB.SetRotation(Qz * BCS.GetRotation());
-				Extra.Add(TPair<FCompactPoseBoneIndex, FTransform>(B, NewB.GetRelativeTransform(CS.GetComponentSpaceTransform(Out.GetParentBoneIndex(B)))));
-			}
-			Out[Spine] = NewSpine.GetRelativeTransform(ParentCS);
-			for (const TPair<FCompactPoseBoneIndex, FTransform>& E : Extra)
-			{
-				Out[E.Key] = E.Value;
+				const FCompactPoseBoneIndex Bn = Bones.MakeCompactPoseIndex(FMeshPoseBoneIndex(MeshIdx));
+				if (Bn.GetInt() == INDEX_NONE) continue;
+				const FTransform NewCS = CombatCS.GetComponentSpaceTransform(Bn) * Delta;
+				Out[Bn] = NewCS.GetRelativeTransform(FinalCS.GetComponentSpaceTransform(Out.GetParentBoneIndex(Bn)));
 			}
 		}
 	}

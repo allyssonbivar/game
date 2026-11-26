@@ -262,3 +262,14 @@ O golpe especial **parou de acertar** depois da fase 1 (a investida parava ~20 c
   5. **Lutando** — anda de lado em volta de você; defende (55%: parry, e 35% dessas viram **defesa segurada** por 0,8–1,8 s); ataca com golpe simples, de cima, estocada, **combos** (2 cliques, 3 cliques = golpe final, 2 cliques + E), **chute** (sempre que você segura a defesa, 60%) e **golpe de salto** (12%, quando está a ~2–2,7 m). Se você fugir, corre atrás.
 - Chegando a menos de 9 m em qualquer fase de tiro, o bot larga o mosquete e vai para a luta.
 - Testado: a 35 m → andou, atirou a 24,8 m (errou por ~45 cm, a bala caiu 15 m atrás), recarregou, atirou de novo, veio correndo e lutou; golpe correndo acertou (55), golpe de salto (120 na cabeça), combo de 2, chutes em quem defende. Golpe especial do jogador continua 150. Duelo de bots (`-EAWDuelo`) continua direto na luta.
+
+## Correções pedidas pelo usuário: mosquete na perna e ar de robô (2026-11-26) ✔ testado (câmera seguindo de lado)
+- **Mosquete atravessando a coxa:** medido no Blender (eixo da coronha × eixo das pernas em todos os quadros do trote, 8 direções): só **8,9 cm** no modo de tiro e **8,4 cm** na guarda da baioneta (a coxa tem ~9 cm de raio → atravessava). Procurada a menor mudança de pose com folga ≥ 15 cm e as mãos ainda na arma:
+  - modo de tiro: punho 8 cm para fora e 5 cm acima, boca um pouco para dentro → **19,4 cm**;
+  - guarda da baioneta: punho 4 cm para fora e 10 cm acima → **17 cm**.
+  Refeitas (só 3ª pessoa; 1ª pessoa não mostra a perna): guarda, erguer, mira, tiro, baixar, recarga do mosquete e todos os golpes/defesas da baioneta. **O golpe especial não foi refeito** (conferido: sabre 150, baioneta 160).
+- **Baioneta ao apertar X:** tocava a pose do tiro até o 1º golpe (a guarda diagonal só aparecia depois) → agora a guarda diagonal entra na hora.
+- **Ar de robô ao andar:** o tronco ficava parado em cima das pernas. Agora, a cada passo, **os ombros giram contra o quadril (5°), o tronco pende para o pé que apoia (2°) e inclina a cada passo (1,3°), e a cabeça compensa** (fica estável). Cheio andando em guarda; 35% atacando/defendendo; 60% recarregando; 15% mirando; menor agachado e no golpe de corpo inteiro.
+- O mosquete e a pistola agora **seguem o peito** (antes o quadril): andar, agachar, torcer e balançar não tiram a arma das mãos.
+- Teste novo: `-EAWCamSegue=N` (câmera de lado que acompanha o seu soldado a N cm).
+- Ainda falta: o usuário dizer quais golpes parecem robóticos no combate (o balanço ajuda ao andar; nos golpes em si ainda são poses-chave feitas à mão).

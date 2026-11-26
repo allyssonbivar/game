@@ -4,6 +4,7 @@
 #include "EmpiresAtWar.h"
 #include "Combat/MeleeCombatComponent.h"
 #include "Camera/CameraComponent.h"
+#include "Camera/CameraActor.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -432,6 +433,30 @@ void AEAWCharacter::Tick(float DeltaSeconds)
 			if (T < 1.3f) { if (!bSprinting) StartSprint(); MoveForward(1.f); }
 			else { if (bSprinting) StopSprint(); if (T > 1.9f && T < 3.6f) MoveForward(-1.f); }
 			if (Crossed(4.4f, 0.95f)) { InputSlash(); InputSlashReleased(); }
+		}
+	}
+	// Teste -EAWCamSegue=N: camera de lado que acompanha o seu soldado a N cm (direita dele, fixa no mundo), olhando o corpo.
+	static float CamFollow = -1.f;
+	static const bool bCamFollow = FParse::Value(FCommandLine::Get(), TEXT("EAWCamSegue="), CamFollow);
+	if (bCamFollow && IsLocallyControlled() && IsPlayerControlled() && GetWorld()->GetTimeSeconds() > 0.3f)
+	{
+		static TWeakObjectPtr<ACameraActor> FollowCam;
+		static FVector FollowSide = FVector::ZeroVector;
+		if (!FollowCam.IsValid())
+		{
+			FollowSide = FVector::CrossProduct(FVector::UpVector, GetActorForwardVector()).GetSafeNormal2D();
+			FollowCam = GetWorld()->SpawnActor<ACameraActor>(GetActorLocation(), FRotator::ZeroRotator);
+			if (FollowCam.IsValid())
+			{
+				FollowCam->GetCameraComponent()->SetFieldOfView(60.f);
+				if (APlayerController* PC = Cast<APlayerController>(Controller)) PC->SetViewTarget(FollowCam.Get());
+			}
+		}
+		if (FollowCam.IsValid())
+		{
+			const FVector Look = GetActorLocation() + FVector(0.f, 0.f, -10.f);
+			const FVector CamLoc = Look + FollowSide * CamFollow + FVector(0.f, 0.f, 25.f);
+			FollowCam->SetActorLocationAndRotation(CamLoc, (Look - CamLoc).Rotation());
 		}
 	}
 	static const bool bDiagMov = FParse::Param(FCommandLine::Get(), TEXT("EAWDiagMov"));
@@ -1994,7 +2019,8 @@ void AEAWCharacter::HandleFirearmState(EFirearmState NewState, uint8 Stage)
 	UAnimSequence* Recarga = bP ? AnimPRecarga : AnimMRecarga; UAnimSequence* RecargaFP = bP ? AnimPRecargaFP : AnimMRecargaFP;
 	if (bBayonet && !bP)
 	{
-		PlaySegment(Guarda, 0.f, Len(Guarda), Len(Guarda), true, GuardaFP);
+		// Baioneta: quem anima e o combate (guarda diagonal do video x1). Antes tocava a pose do tiro ate o 1o golpe.
+		HandleCombatState(Combat->GetState(), Combat->GetDirection());
 		return;
 	}
 	switch (NewState)

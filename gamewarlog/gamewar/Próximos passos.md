@@ -75,3 +75,4 @@ atualizado: 2026-11-26
 - [x] Bots usarem a defesa segurada (2026-11-26)
 - [x] Combate fase 4 — combos por cliques (2026-11-26)
 - [x] Bots usarem combos + tiro de longe (2026-11-26)
+- [ ] Usuário apontar quais golpes ainda parecem robóticos (vídeo curto ajuda) — próximos: passe de mola nos golpes da baioneta, antecipação/peso nos golpes
