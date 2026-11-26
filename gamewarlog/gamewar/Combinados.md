@@ -14,3 +14,8 @@ atualizado: 2026-11-24
 ## Armas do soldado (2026-11-25)
 - Só **2 armas**: uma de fogo (**mosquete ou pistola**) + uma de corpo a corpo (**espada/sabre, faca ou machado**).
 - Achou uma arma no chão: chega perto, **segura a tecla (F) e aparece uma barra de 3 s**; a nova substitui a do mesmo tipo e a antiga é largada.
+
+## Golpe especial (decisão do usuário, 2026-11-26)
+- **Segurar o botão esquerdo por 3 s + W** = golpe especial. Na carga o soldado **puxa o braço para trás**; ao soltar **vai com força** (passo longo + estocada que atravessa o corpo).
+- Sabre, faca e machado: movimento como no vídeo de referência `Modelos\ex\move1.mp4` (braço esquerdo aponta o alvo, lâmina atrás do quadril). Baioneta: investida como a **Fig. 9** do manual de baioneta (mosquete puxado para trás → estocada longa com as duas mãos).
+- Efeito como no vídeo: a lâmina atravessa e o sangue jorra **pelas costas** da vítima por ~1,6 s.

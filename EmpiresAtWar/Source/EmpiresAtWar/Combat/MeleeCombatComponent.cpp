@@ -206,6 +206,74 @@ void UMeleeCombatComponent::RequestFeint()
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Golpe especial (segurar o ataque 3 s + W)
+// ---------------------------------------------------------------------------
+
+float UMeleeCombatComponent::GetChargeAlpha() const
+{
+	if (!IsCharging())
+	{
+		return 0.f;
+	}
+	return FMath::Clamp((Now() - Rep.StartTime) / FMath::Max(0.1f, GetConfig().ChargeTime), 0.f, 1.f);
+}
+
+void UMeleeCombatComponent::RequestChargeStart()
+{
+	if (GetOwner() && GetOwner()->HasAuthority()) HandleChargeStart(); else ServerChargeStart();
+}
+
+void UMeleeCombatComponent::RequestChargeRelease(bool bFire, EAttackDirection Fallback)
+{
+	if (GetOwner() && GetOwner()->HasAuthority()) HandleChargeRelease(bFire, Fallback); else ServerChargeRelease(bFire, Fallback);
+}
+
+bool UMeleeCombatComponent::ServerChargeStart_Validate() { return true; }
+void UMeleeCombatComponent::ServerChargeStart_Implementation() { HandleChargeStart(); }
+bool UMeleeCombatComponent::ServerChargeRelease_Validate(bool bFire, EAttackDirection Fallback) { return true; }
+void UMeleeCombatComponent::ServerChargeRelease_Implementation(bool bFire, EAttackDirection Fallback) { HandleChargeRelease(bFire, Fallback); }
+
+void UMeleeCombatComponent::HandleChargeStart()
+{
+	const UWoundComponent* Wounds = GetWounds();
+	const FMeleeAttackSpec* Spec = GetConfig().Attacks.Find(EAttackDirection::Special);
+	if (!Spec || (Wounds && !Wounds->CanFight()) || Stamina < Spec->StaminaCost)
+	{
+		return;
+	}
+	if (Rep.State != EMeleeState::Idle && Rep.State != EMeleeState::Recovery)
+	{
+		return;
+	}
+	bComboQueued = false;
+	// A carga fica em Windup ate o dono soltar (limite de 20 s, depois desiste sozinho).
+	EnterState(EMeleeState::Windup, EAttackDirection::Special, 20.f);
+}
+
+void UMeleeCombatComponent::HandleChargeRelease(bool bFire, EAttackDirection Fallback)
+{
+	if (!IsCharging())
+	{
+		return;
+	}
+	const FMeleeWeaponConfig& Config = GetConfig();
+	const FMeleeAttackSpec* Spec = Config.Attacks.Find(EAttackDirection::Special);
+	// Folga de 0,15 s para o atraso da rede.
+	if (bFire && Spec && Now() - Rep.StartTime >= Config.ChargeTime - 0.15f && SpendStamina(Spec->StaminaCost))
+	{
+		EnterState(EMeleeState::Release, EAttackDirection::Special, Spec->Release * TimeMultiplier());
+		UE_LOG(LogEAWCombat, Log, TEXT("%s: GOLPE ESPECIAL"), GetOwner() ? *GetOwner()->GetName() : TEXT("?"));
+		return;
+	}
+	// Soltou antes da hora (ou sem W): vira o golpe normal.
+	EnterState(EMeleeState::Idle, Rep.Direction, 0.f);
+	if (Fallback != EAttackDirection::Special)
+	{
+		HandleAttack(Fallback);
+	}
+}
+
 bool UMeleeCombatComponent::ServerAttack_Validate(EAttackDirection Direction) { return true; }
 void UMeleeCombatComponent::ServerAttack_Implementation(EAttackDirection Direction) { HandleAttack(Direction); }
 
@@ -373,6 +441,11 @@ void UMeleeCombatComponent::OnStateFinished()
 	switch (Rep.State)
 	{
 	case EMeleeState::Windup:
+		if (Rep.Direction == EAttackDirection::Special)
+		{
+			EnterState(EMeleeState::Idle, Rep.Direction, 0.f);   // segurou a carga tempo demais: desiste
+			break;
+		}
 		EnterState(EMeleeState::Release, Rep.Direction, Spec ? Spec->Release * Mult : 0.3f);
 		break;
 
@@ -532,7 +605,8 @@ void UMeleeCombatComponent::ResolveHit(const FHitResult& Hit)
 			{
 				VictimCombat->RiposteUntil = Now() + VictimConfig.RiposteWindow;
 				VictimCombat->EnterState(EMeleeState::Idle, VictimCombat->Rep.Direction, 0.f);
-				EnterState(EMeleeState::Stunned, Rep.Direction, Config.StunWhenParried);
+				// O especial defendido deixa o atacante exposto por muito mais tempo.
+				EnterState(EMeleeState::Stunned, Rep.Direction, Config.StunWhenParried * (Rep.Direction == EAttackDirection::Special ? 1.8f : 1.f));
 			}
 			else
 			{
@@ -552,6 +626,11 @@ void UMeleeCombatComponent::ResolveHit(const FHitResult& Hit)
 	{
 		Region = EBodyRegion::Torso;
 	}
+	// O golpe especial atravessa o braco que guarda o peito e entra no tronco.
+	if (Rep.Direction == EAttackDirection::Special && Region == EBodyRegion::Arms)
+	{
+		Region = EBodyRegion::Torso;
+	}
 	const float* RegionMult = Config.RegionDamageMultiplier.Find(Region);
 	const float Damage = (Spec ? Spec->BaseDamage : 30.f) * (RegionMult ? *RegionMult : 1.f);
 
@@ -567,7 +646,7 @@ void UMeleeCombatComponent::ResolveHit(const FHitResult& Hit)
 			|| VictimState == EMeleeState::Feint || VictimState == EMeleeState::ParryRecovery || VictimState == EMeleeState::Parry)
 		{
 			VictimCombat->bComboQueued = false;
-			VictimCombat->EnterState(EMeleeState::Stunned, VictimCombat->Rep.Direction, 0.35f);
+			VictimCombat->EnterState(EMeleeState::Stunned, VictimCombat->Rep.Direction, Rep.Direction == EAttackDirection::Special ? 0.9f : 0.35f);
 		}
 	}
 

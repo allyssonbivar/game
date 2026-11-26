@@ -122,6 +122,17 @@ protected:
 	void StartSprint();
 	void StopSprint();
 	void InputSlash();
+	void InputSlashReleased();
+	/** Golpe especial: segurando o ataque com W, carrega 3 s (braco para tras) e solta sozinho com W apertado. */
+	void UpdateCharge();
+	/** Fim do trecho tocado nos bracos de 1a pessoa: sem laco, a pose para e fica ali (como no corpo de 3a pessoa). */
+	float FPSegEnd = 0.f;
+	bool bFPSegLoop = true;
+	bool bAttackHeld = false;
+	/** Efeitos do golpe especial que atravessa o corpo (todas as maquinas). */
+	void PlaySpecialHitEffects(class AEAWCharacter* Victim, const FVector& Location, const FVector& Dir);
+	UPROPERTY() class UAnimSequence* AnimSabreEspecial = nullptr;   UPROPERTY() class UAnimSequence* AnimSabreEspecialFP = nullptr;
+	UPROPERTY() class UAnimSequence* AnimMEspecial = nullptr;       UPROPERTY() class UAnimSequence* AnimMEspecialFP = nullptr;
 	void InputOverhead();
 	void InputStab();
 	void InputParry();
@@ -205,6 +216,7 @@ protected:
 	/** Passo a frente no inicio do golpe (cm/s). */
 	UPROPERTY(EditAnywhere, Category = "Peso") float LungeSlash = 160.f;
 	UPROPERTY(EditAnywhere, Category = "Peso") float LungeStab = 240.f;
+	UPROPERTY(EditAnywhere, Category = "Peso") float LungeSpecial = 900.f;
 
 	void TurnInput(float Value);
 	void LookUpInput(float Value);

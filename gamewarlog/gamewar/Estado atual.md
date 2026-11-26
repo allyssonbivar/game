@@ -172,3 +172,12 @@ Todas começam e terminam na guarda. Golpes aceleram até o impacto (ease-in) e 
 - **Fumaça nova (referência: vídeo do Holdfast 2:09 e 3:39):** flocos com sombra própria que olham para a câmera; nuvem densa ~1,5–3 m à frente do cano, rolos em volta da boca, sopro da caçoleta; fica 5–7 s e deriva com o vento (35 cm/s).
 - Texturas geradas por ruído (do zero): `EmpiresAtWar\Texturas\T_Fumaca.png`, `T_Sangue_Jato.png`, `T_Sangue_Mancha.png` (atlas 2×2; R = transparência, G/B = sombreado).
 - Modos de teste: `-EAWBot` (cria o bot de treino), `-EAWMirarPescoco` (tiro automático no pescoço do mais próximo), `-EAWTestePescoco` (toda bala conta como pescoço), `-EAWCamBot=N` (câmera fixa ao lado do bot).
+
+## Golpe especial carregado (2026-11-26) ✔ testado (câmera lateral, 1ª pessoa; sabre, faca e baioneta)
+- **Como usar:** andando para a frente (W), **segure o botão esquerdo**: o soldado puxa o braço para trás e aparece a barra "Golpe especial...". Com **3 s** de carga e **W apertado**, o golpe sai sozinho. Soltar o botão antes (ou sem W) = corte normal. Sem W, o botão esquerdo continua sendo o corte de sempre.
+- **Animações novas (Blender, feitas do zero):** `AS_Sabre_Especial` (+`_FP`) — braço esquerdo aponta o alvo, mão direita atrás do quadril, depois passo de 30 cm e estocada com o corpo (alcance 1,83 m); serve para sabre, faca e machado. `AS_Mosquete_Especial` (+`_FP`) — mosquete puxado para trás do quadril, depois investida funda com as duas mãos e a arma na horizontal (Fig. 9). As versões `_FP` têm o corpo quase parado (senão o ombro tampa a câmera).
+- **Investida:** mira o inimigo à frente (até 4 m, 40°), vira o corpo para ele e para na distância de acerto da arma (faca 0,85 m, machado 1,3 m, sabre 1,4 m, baioneta 1,75 m). Alcance prático: faca ~2 m, sabre ~3 m, baioneta ~3,2 m.
+- **Dano:** 150 (baioneta 160) = **fatal no tronco**; atravessa o braço que guarda o peito. Custa 22–28 de stamina. Se for **aparado**, o atacante fica atordoado 1,8× mais tempo. Quem leva o golpe fica atordoado 0,9 s.
+- **Efeito:** respingo de volta na entrada + leque de filetes na saída + **jorro contínuo pelas costas** (1,6 s, perdendo força), trava de impacto e tremor de câmera.
+- Multiplayer: a carga é um estado replicado (os outros veem o braço puxado = aviso para aparar); o servidor só aceita o golpe com a carga completa.
+- Modo de teste: `-EAWAutoEspecial` (carrega e solta sozinho, em ciclo). Ex.: `-EAWBot -EAWBotPassivo -EAWAutoEspecial -EAWArma=Sabre -EAWBotDist=280 -EAWCampo -EAWCamBot=330`.

@@ -30,7 +30,7 @@ public:
 
 	/** Jato pulsante preso ao osso Bone (o ponto e a direcao acompanham o osso, mesmo em ragdoll). */
 	static void Jet(UWorld* World, USkeletalMeshComponent* Mesh, FName Bone, const FVector& WorldPoint, const FVector& WorldDir, float Duration, float Rate,
-		float JetSpeed = 320.f);
+		float JetSpeed = 320.f, bool bHeartbeat = true);
 
 	/** Mancha no chao (maximo de 120 no mundo; as mais antigas somem). */
 	static void SpawnStain(UWorld* World, const FVector& Location, float Size);
@@ -68,6 +68,7 @@ private:
 	float JetRate = 0.f;
 	float JetSpeed = 320.f;
 	float JetPhase = 0.f;
+	bool bJetHeartbeat = true;   // false = jorro continuo que enfraquece (ferida que atravessa)
 	float EmitAccumulator = 0.f;
 
 	void AddStreaks(const FVector& Location, const FVector& Dir, int32 Count, float Speed, float SpreadDeg, float SizeScale);

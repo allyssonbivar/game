@@ -100,6 +100,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combate")
 	void RequestFeint();
 
+	/** Golpe especial: comeca a carregar (braco puxado para tras). */
+	void RequestChargeStart();
+	/** Solta a carga: bFire = golpe especial (so com a carga completa); senao vira o golpe Fallback. */
+	void RequestChargeRelease(bool bFire, EAttackDirection Fallback);
+	bool IsCharging() const { return Rep.State == EMeleeState::Windup && Rep.Direction == EAttackDirection::Special; }
+	/** 0..1 da carga do golpe especial. */
+	float GetChargeAlpha() const;
+	/** Proximo lado do corte (alterna a cada corte). */
+	EAttackDirection PeekNextSlash() const { return bNextSlashLeft ? EAttackDirection::SlashLeft : EAttackDirection::SlashRight; }
+	void ConsumeNextSlash() { bNextSlashLeft = !bNextSlashLeft; }
+
 	// ---------- Consulta ----------
 
 	UFUNCTION(BlueprintPure, Category = "Combate")
@@ -147,6 +158,15 @@ protected:
 
 	UFUNCTION(Server, Reliable, WithValidation)
 	void ServerFeint();
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerChargeStart();
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerChargeRelease(bool bFire, EAttackDirection Fallback);
+
+	void HandleChargeStart();
+	void HandleChargeRelease(bool bFire, EAttackDirection Fallback);
 
 	UFUNCTION(NetMulticast, Unreliable)
 	void MulticastImpact(FVector_NetQuantize Location, EBodyRegion Region, bool bParried, AActor* Victim);

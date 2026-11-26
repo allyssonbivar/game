@@ -75,7 +75,7 @@ void AEAWBloodFX::Burst(UWorld* World, const FVector& Location, const FVector& D
 }
 
 void AEAWBloodFX::Jet(UWorld* World, USkeletalMeshComponent* Mesh, FName Bone, const FVector& WorldPoint, const FVector& WorldDir, float Duration, float Rate,
-	float InJetSpeed)
+	float InJetSpeed, bool bHeartbeat)
 {
 	if (!Mesh)
 	{
@@ -92,6 +92,7 @@ void AEAWBloodFX::Jet(UWorld* World, USkeletalMeshComponent* Mesh, FName Bone, c
 		FX->JetRate = Rate;
 		FX->JetSpeed = InJetSpeed;
 		FX->JetPhase = FMath::FRand();
+		FX->bJetHeartbeat = bHeartbeat;
 	}
 }
 
@@ -170,7 +171,7 @@ void AEAWBloodFX::Tick(float Dt)
 			JetPhase += Dt * Bpm / 60.f;
 			const float Beat = FMath::Frac(JetPhase);
 			// Sistole curta e forte (jato alto), diastole com fio fraco.
-			const float Pulse = Beat < 0.22f ? FMath::Sin(Beat / 0.22f * PI) : 0.12f;
+			const float Pulse = !bJetHeartbeat ? FMath::Lerp(0.55f, 1.f, Fade) : Beat < 0.22f ? FMath::Sin(Beat / 0.22f * PI) : 0.12f;
 			const FVector P = BoneTM.TransformPosition(JetLocalPoint);
 			const FVector Dir = BoneTM.TransformVectorNoScale(JetLocalDir);
 			EmitAccumulator += JetRate * (0.25f + 0.75f * Fade) * Pulse * Dt;

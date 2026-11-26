@@ -24,7 +24,8 @@ enum class EAttackDirection : uint8
 	SlashLeft,   // corte horizontal vindo da direita para a esquerda
 	SlashRight,  // corte horizontal vindo da esquerda para a direita
 	Overhead,    // golpe de cima
-	Stab         // estocada
+	Stab,        // estocada
+	Special      // golpe especial carregado: segurar o ataque 3 s + W (puxa o braco para tras e estoca com o corpo)
 };
 
 UENUM(BlueprintType)
@@ -123,6 +124,10 @@ struct FMeleeWeaponConfig
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ataques")
 	TMap<EAttackDirection, FMeleeAttackSpec> Attacks;
 
+	/** Golpe especial: tempo segurando o ataque (com o braco puxado para tras) ate poder soltar. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ataques")
+	float ChargeTime = 3.f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Defesa")
 	float ParryWindow = 0.30f;
 
@@ -208,6 +213,15 @@ struct FMeleeWeaponConfig
 		Stab.WindupPose = FMeleePose(FVector(-35.f, -16.f, 8.f), FRotator(0.f, 0.f, 0.f));
 		Stab.EndPose = FMeleePose(FVector(45.f, -20.f, 8.f), FRotator(0.f, 0.f, 0.f));
 		Attacks.Add(EAttackDirection::Stab, Stab);
+
+		// Especial: a preparacao e a carga (ChargeTime); o golpe e rapido, longo e pesado; recuperacao lenta.
+		FMeleeAttackSpec Special = Stab;
+		Special.Windup = 0.55f;   // so o tempo de puxar o braco (a carga segura a pose)
+		Special.Release = 0.30f;
+		Special.Recovery = 0.95f;
+		Special.StaminaCost = 25.f;
+		Special.BaseDamage = 150.f;   // atravessa o tronco: fatal (LethalEnergyThreshold = 150)
+		Attacks.Add(EAttackDirection::Special, Special);
 
 		RegionDamageMultiplier.Add(EBodyRegion::Head, 2.0f);
 		RegionDamageMultiplier.Add(EBodyRegion::Neck, 2.0f);

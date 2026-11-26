@@ -121,6 +121,11 @@ void AEAWGameMode::HandleStartingNewPlayer_Implementation(APlayerController* New
 		AutoPC = NewPlayer;
 		GetWorldTimerManager().SetTimer(AutoTimer, this, &AEAWGameMode::AutoAttack, 1.8f, true, 0.6f);
 	}
+	if (FParse::Param(Cmd, TEXT("EAWAutoEspecial")) && NewPlayer)
+	{
+		AutoPC = NewPlayer;
+		GetWorldTimerManager().SetTimer(AutoTimer, this, &AEAWGameMode::AutoSpecial, 0.1f, true, 1.0f);
+	}
 
 	// -EAWArmasNoChao: faca e machado no chao a frente do jogador; -EAWAutoPegar: segura F sozinho depois de 1,5 s.
 	if (FParse::Param(Cmd, TEXT("EAWArmasNoChao")) && NewPlayer && NewPlayer->GetPawn())
@@ -148,7 +153,7 @@ void AEAWGameMode::HandleStartingNewPlayer_Implementation(APlayerController* New
 	}
 
 	// Testes automaticos: o mouse real (de quem esta usando o PC) nao mexe a camera.
-	if (NewPlayer && (FParse::Param(Cmd, TEXT("EAWAutoTiro")) || FParse::Param(Cmd, TEXT("EAWAutoPegar")) || FParse::Param(Cmd, TEXT("EAWAutoAndar")) || FParse::Param(Cmd, TEXT("EAWAutoAtaque"))))
+	if (NewPlayer && (FParse::Param(Cmd, TEXT("EAWAutoTiro")) || FParse::Param(Cmd, TEXT("EAWAutoPegar")) || FParse::Param(Cmd, TEXT("EAWAutoAndar")) || FParse::Param(Cmd, TEXT("EAWAutoAtaque")) || FParse::Param(Cmd, TEXT("EAWAutoEspecial"))))
 	{
 		NewPlayer->SetIgnoreLookInput(true);
 	}
@@ -227,6 +232,23 @@ void AEAWGameMode::AutoAttack()
 	case 2: C->RequestAttack(EAttackDirection::Overhead); break;
 	case 3: C->RequestAttack(EAttackDirection::Stab); break;
 	default: C->RequestParry(); break;
+	}
+}
+
+void AEAWGameMode::AutoSpecial()
+{
+	AEAWCharacter* Soldier = AutoPC.IsValid() ? Cast<AEAWCharacter>(AutoPC->GetPawn()) : nullptr;
+	if (!Soldier || !Soldier->GetCombat())
+	{
+		return;
+	}
+	UMeleeCombatComponent* C = Soldier->GetCombat();
+	AutoPhaseTime += 0.1f;
+	switch (AutoPhase)
+	{
+	case 0: if (C->GetState() == EMeleeState::Idle && AutoPhaseTime > 1.0f) { C->RequestChargeStart(); AutoPhase = 1; AutoPhaseTime = 0.f; } break;
+	case 1: if (C->GetChargeAlpha() >= 1.f) { C->RequestChargeRelease(true, EAttackDirection::Special); AutoPhase = 2; AutoPhaseTime = 0.f; } break;
+	default: if (AutoPhaseTime > 4.0f) { AutoPhase = 0; AutoPhaseTime = 0.f; } break;
 	}
 }
 

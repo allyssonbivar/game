@@ -190,6 +190,8 @@ AEAWCharacter::AEAWCharacter()
 	EAW_ANIM(AnimMAparoDir, "AS_Mosquete_AparoDir"); EAW_ANIM(AnimMAparoDirFP, "AS_Mosquete_AparoDir_FP");
 	EAW_ANIM(AnimMAparoEsq, "AS_Mosquete_AparoEsq"); EAW_ANIM(AnimMAparoEsqFP, "AS_Mosquete_AparoEsq_FP");
 	EAW_ANIM(AnimMortePescoco, "AS_Morte_Pescoco");
+	EAW_ANIM(AnimSabreEspecial, "AS_Sabre_Especial"); EAW_ANIM(AnimSabreEspecialFP, "AS_Sabre_Especial_FP");
+	EAW_ANIM(AnimMEspecial, "AS_Mosquete_Especial"); EAW_ANIM(AnimMEspecialFP, "AS_Mosquete_Especial_FP");
 	EAW_ANIM(AnimMBloqueado, "AS_Mosquete_Bloqueado"); EAW_ANIM(AnimMBloqueadoFP, "AS_Mosquete_Bloqueado_FP");
 	EAW_ANIM(AnimMFinta, "AS_Mosquete_Finta"); EAW_ANIM(AnimMFintaFP, "AS_Mosquete_Finta_FP");
 #undef EAW_ANIM
@@ -336,6 +338,14 @@ void AEAWCharacter::Tick(float DeltaSeconds)
 	UpdateFirearmView(DeltaSeconds);
 	UpdateBodyTurn(DeltaSeconds);
 	UpdatePickup(DeltaSeconds);
+	UpdateCharge();
+	// Bracos de 1a pessoa: o trecho sem laco para no fim (antes seguia tocando o resto da animacao - ex.: a carga do
+	// golpe especial voltava sozinha para a guarda depois de ~1 s).
+	if (bFirstPersonActive && !bFPSegLoop && FirstPersonMesh->GetPlayRate() > 0.f && FirstPersonMesh->GetPosition() >= FPSegEnd)
+	{
+		FirstPersonMesh->SetPosition(FPSegEnd, false);
+		FirstPersonMesh->SetPlayRate(0.f);
+	}
 
 	if (IsLocallyControlled() && IsPlayerControlled())
 	{
@@ -362,6 +372,7 @@ void AEAWCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAction("Sprint", IE_Released, this, &AEAWCharacter::StopSprint);
 
 	PlayerInputComponent->BindAction("AttackSlash", IE_Pressed, this, &AEAWCharacter::InputSlash);
+	PlayerInputComponent->BindAction("AttackSlash", IE_Released, this, &AEAWCharacter::InputSlashReleased);
 	PlayerInputComponent->BindAction("AttackOverhead", IE_Pressed, this, &AEAWCharacter::InputOverhead);
 	PlayerInputComponent->BindAction("AttackStab", IE_Pressed, this, &AEAWCharacter::InputStab);
 	PlayerInputComponent->BindAction("Parry", IE_Pressed, this, &AEAWCharacter::InputParry);
@@ -427,7 +438,39 @@ void AEAWCharacter::InputSlash()
 {
 	if (IsSwitching()) return;
 	if (UsingMusketFire()) { Firearm->RequestFire(); return; }
-	if (UsesMeleeInput()) Combat->RequestSlash();
+	if (!UsesMeleeInput()) return;
+	// Andando para a frente (W) e em guarda: comeca a carregar o golpe especial; soltar antes de 3 s vira o corte normal.
+	bAttackHeld = true;
+	const EMeleeState S = Combat->GetState();
+	if (GetInputAxisValue(TEXT("MoveForward")) > 0.5f && (S == EMeleeState::Idle || S == EMeleeState::Recovery))
+	{
+		Combat->RequestChargeStart();
+		return;
+	}
+	Combat->RequestSlash();
+}
+void AEAWCharacter::InputSlashReleased()
+{
+	bAttackHeld = false;
+	if (Combat->IsCharging())
+	{
+		// Soltou antes da carga completa (ou sem W): corte normal.
+		const EAttackDirection Dir = Combat->PeekNextSlash();
+		Combat->ConsumeNextSlash();
+		Combat->RequestChargeRelease(false, Dir);
+	}
+}
+void AEAWCharacter::UpdateCharge()
+{
+	if (!IsLocallyControlled() || !IsPlayerControlled() || !Combat->IsCharging())
+	{
+		return;
+	}
+	// Carga completa + W apertado = solta o golpe especial.
+	if (bAttackHeld && Combat->GetChargeAlpha() >= 1.f && GetInputAxisValue(TEXT("MoveForward")) > 0.5f)
+	{
+		Combat->RequestChargeRelease(true, EAttackDirection::Special);
+	}
 }
 void AEAWCharacter::InputOverhead() { if (UsesMeleeInput() && !IsSwitching()) Combat->RequestAttack(EAttackDirection::Overhead); }
 void AEAWCharacter::InputStab()     { if (UsesMeleeInput() && !IsSwitching()) Combat->RequestAttack(EAttackDirection::Stab); }
@@ -628,6 +671,21 @@ void AEAWCharacter::HitStop(AActor* Actor, float Seconds)
 	}), Seconds, false);
 }
 
+void AEAWCharacter::PlaySpecialHitEffects(AEAWCharacter* Other, const FVector& Location, const FVector& Dir)
+{
+	// A lamina atravessa: respingo de volta na entrada, e pelas costas um jorro longo que perde forca em ~1,6 s.
+	const FVector D = Dir.GetSafeNormal();
+	const FVector Exit = Location + D * 28.f;
+	AEAWBloodFX::Burst(GetWorld(), Location, -D + FVector(0.f, 0.f, 0.35f), 16, 260.f);
+	AEAWBloodFX::Burst(GetWorld(), Exit, D + FVector(0.f, 0.f, 0.15f), 34, 620.f);
+	const FName Bone = Other->GetMesh()->FindClosestBone(Location);
+	AEAWBloodFX::Jet(GetWorld(), Other->GetMesh(), Bone != NAME_None ? Bone : FName(TEXT("spine_03")), Exit, (D + FVector(0.f, 0.f, 0.2f)).GetSafeNormal(),
+		1.6f, 420.f, 720.f, false);
+	HitStop(this, 0.12f);
+	AddTrauma(0.5f);
+	UE_LOG(LogEAWCombat, Log, TEXT("%s: golpe especial atravessou %s (osso %s)"), *GetName(), *Other->GetName(), *Bone.ToString());
+}
+
 void AEAWCharacter::HandleImpact(FVector Location, EBodyRegion Region, bool bParried, AActor* Victim)
 {
 	// Chamado em todas as maquinas (multicast) no atacante.
@@ -635,7 +693,12 @@ void AEAWCharacter::HandleImpact(FVector Location, EBodyRegion Region, bool bPar
 	const FVector Dir = Other ? (Other->GetActorLocation() - GetActorLocation()).GetSafeNormal2D() : GetActorForwardVector();
 	const float StopTime = bParried ? 0.09f : 0.07f;
 	HitStop(this, StopTime);
-	if (Other && !bParried)
+	if (Other && !bParried && Combat->GetDirection() == EAttackDirection::Special)
+	{
+		PlaySpecialHitEffects(Other, Location, Dir);
+		Other->NoteHit(Region, Location, Dir);
+	}
+	else if (Other && !bParried)
 	{
 		// Borrifo na direcao do golpe (mais forte na cabeca/pescoco).
 		const bool bVital = Region == EBodyRegion::Head || Region == EBodyRegion::Neck;
@@ -808,6 +871,8 @@ void AEAWCharacter::PlaySegment(UAnimSequence* Anim, float Start, float End, flo
 	{
 		// Os bracos de 1a pessoa usam a versao propria (mesmos quadros-chave), se existir.
 		Play(FirstPersonMesh, FPAnim ? FPAnim : Anim);
+		FPSegEnd = End;
+		bFPSegLoop = bLoop;
 	}
 }
 
@@ -840,6 +905,11 @@ void AEAWCharacter::HandleCombatState(EMeleeState NewState, EAttackDirection Dir
 	case EAttackDirection::Stab:
 		Attack = bMusket ? AnimMEstocada : AnimEstocada; AttackFP = bMusket ? AnimMEstocadaFP : nullptr;
 		WindupEnd = 13; ReleaseEnd = 20; Last = 35; break;
+	case EAttackDirection::Special:
+		// Golpe especial: preparacao = puxar o braco (a pose fica parada enquanto carrega); golpe = passo longo e estocada.
+		Attack = bMusket ? AnimMEspecial : AnimSabreEspecial; AttackFP = bMusket ? AnimMEspecialFP : AnimSabreEspecialFP;
+		if (bMusket) { WindupEnd = 14; ReleaseEnd = 26; Last = 50; } else { WindupEnd = 12; ReleaseEnd = 22; Last = 42; }
+		break;
 	default: break;
 	}
 	if (bMusket && NewState == EMeleeState::Windup)
@@ -882,13 +952,46 @@ void AEAWCharacter::HandleCombatState(EMeleeState NewState, EAttackDirection Dir
 	switch (NewState)
 	{
 	case EMeleeState::Idle:          PlaySegment(Guard, 0.f, Guard->SequenceLength, Guard->SequenceLength, true, GuardFP); break;
-	case EMeleeState::Windup:        PlaySegment(Attack, T(1), T(WindupEnd), D, false, AttackFP); break;
+	case EMeleeState::Windup:
+		// A carga dura ate soltar: o braco vai para tras em ~0,55 s e fica la.
+		PlaySegment(Attack, T(1), T(WindupEnd), Direction == EAttackDirection::Special ? 0.55f : D, false, AttackFP);
+		break;
 	case EMeleeState::Release:
 		PlaySegment(Attack, T(WindupEnd), T(ReleaseEnd), D, false, AttackFP);
 		// O corpo avanca com o golpe (maior na estocada).
 		if (HasAuthority() || IsLocallyControlled())
 		{
-			LaunchCharacter(GetActorForwardVector() * (Direction == EAttackDirection::Stab ? LungeStab : LungeSlash), false, false);
+			float Lunge = Direction == EAttackDirection::Stab ? LungeStab : LungeSlash;
+			FVector LungeDir = GetActorForwardVector();
+			if (Direction == EAttackDirection::Special)
+			{
+				// Investida do especial: mira o inimigo a frente (ate 4 m, 40 graus) e para na distancia de acerto da arma,
+				// em vez de atropelar quem esta perto (faca) ou parar curto (baioneta).
+				Lunge = LungeSpecial;
+				const float StopDist = CurrentWeapon == EEAWWeapon::Faca ? 85.f : CurrentWeapon == EEAWWeapon::Machado ? 130.f
+					: CurrentWeapon == EEAWWeapon::Mosquete ? 175.f : 140.f;
+				AEAWCharacter* Target = nullptr;
+				float Best = 400.f;
+				for (TActorIterator<AEAWCharacter> It(GetWorld()); It; ++It)
+				{
+					const FVector To = (It->GetActorLocation() - GetActorLocation());
+					const float Dist = To.Size2D();
+					if (*It != this && It->Wounds->CanFight() && Dist < Best
+						&& FVector::DotProduct(To.GetSafeNormal2D(), GetActorForwardVector()) > FMath::Cos(FMath::DegreesToRadians(40.f)))
+					{
+						Best = Dist;
+						Target = *It;
+					}
+				}
+				if (Target)
+				{
+					LungeDir = (Target->GetActorLocation() - GetActorLocation()).GetSafeNormal2D();
+					SetActorRotation(FRotator(0.f, LungeDir.Rotation().Yaw, 0.f));
+					// Distancia percorrida ~ v^2 / (2 * 5800 cm/s^2) (medido no teste com o sabre).
+					Lunge = FMath::Clamp(FMath::Sqrt(2.f * 5800.f * FMath::Max(0.f, Best - StopDist)), 200.f, 1100.f);
+				}
+			}
+			LaunchCharacter(LungeDir * Lunge, false, false);
 		}
 		break;
 	case EMeleeState::Recovery:      PlaySegment(Attack, T(ReleaseEnd), T(Last), D, false, AttackFP); break;
@@ -1307,7 +1410,7 @@ void AEAWCharacter::DrawDebugHud()
 
 	static const TCHAR* StateNames[] = { TEXT("Guarda"), TEXT("Preparacao"), TEXT("GOLPE"), TEXT("Recuperacao"),
 		TEXT("PARRY"), TEXT("Recup. parry"), TEXT("Finta"), TEXT("Atordoado"), TEXT("Fora de combate") };
-	static const TCHAR* DirNames[] = { TEXT("corte esq."), TEXT("corte dir."), TEXT("de cima"), TEXT("estocada") };
+	static const TCHAR* DirNames[] = { TEXT("corte esq."), TEXT("corte dir."), TEXT("de cima"), TEXT("estocada"), TEXT("ESPECIAL") };
 	static const TCHAR* LifeNames[] = { TEXT("Saudavel"), TEXT("Ferido"), TEXT("Incapacitado"), TEXT("Morto") };
 
 	const int32 StateIdx = FMath::Clamp(static_cast<int32>(Combat->GetState()), 0, 8);
@@ -1808,6 +1911,7 @@ void AEAWCharacter::ApplyWeaponCombatConfig()
 		Scale(EAttackDirection::SlashRight, 0.7f, 28.f, 7.f);
 		Scale(EAttackDirection::Overhead, 0.75f, 32.f, 8.f);
 		Scale(EAttackDirection::Stab, 0.7f, 48.f, 7.f);
+		Scale(EAttackDirection::Special, 0.85f, 150.f, 22.f);
 		C.ParryWindow = 0.26f;
 		Combat->AnimBladeStart = 2.f;
 		Combat->AnimBladeLength = 20.f;
@@ -1819,6 +1923,7 @@ void AEAWCharacter::ApplyWeaponCombatConfig()
 		Scale(EAttackDirection::SlashRight, 1.2f, 55.f, 14.f);
 		Scale(EAttackDirection::Overhead, 1.2f, 72.f, 16.f);
 		Scale(EAttackDirection::Stab, 1.1f, 30.f, 10.f);
+		Scale(EAttackDirection::Special, 1.1f, 150.f, 28.f);
 		C.StunWhenParried = 0.7f;
 		Combat->AnimBladeStart = 46.f;
 		Combat->AnimBladeLength = 18.f;
@@ -1830,6 +1935,7 @@ void AEAWCharacter::ApplyWeaponCombatConfig()
 		Scale(EAttackDirection::SlashRight, 1.25f, 38.f, 14.f);
 		Scale(EAttackDirection::Overhead, 1.25f, 62.f, 18.f);     // estocada longa
 		Scale(EAttackDirection::Stab, 1.15f, 55.f, 12.f);         // estocada
+		Scale(EAttackDirection::Special, 1.1f, 160.f, 28.f);      // estocada especial (Fig. 9: investida com a baioneta)
 		C.StunWhenParried = 0.65f;
 		C.ParryWindow = 0.32f;
 		Combat->GripSocket = TEXT("arma_boca");

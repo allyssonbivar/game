@@ -149,3 +149,4 @@ Capturas a cada 0,2–0,3 s com `-EAWDuelo`; cortes forçados com `-EAWTesteCort
 | Faca × machado | ✖ machado flutuando (bug #50) → ✔ na mão |
 | Combate do mosquete em 1ª pessoa | ✔ estocadas à frente; coronhada ajustada só para a 1ª pessoa (preparação 25 cm à frente, golpe 18 cm abaixo) |
 | Não visto ainda | Recarga completa de 15 s em jogo (só etapas iniciais), ferida de bala de perto |
+| Golpe especial (sabre, faca, baioneta) | ✔ carga com braço para trás, investida até o alvo, jorro pelas costas, vítima cai; 1ª pessoa sem tapar a tela |

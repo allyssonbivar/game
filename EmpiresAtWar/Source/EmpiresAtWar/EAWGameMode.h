@@ -49,6 +49,8 @@ private:
 	// -EAWAutoTiro : o soldado do jogador mira 1,5 s, dispara, espera e recarrega, em ciclo.
 	// -EAWBotDist=N : distancia (cm) do bot de treino (padrao 300).
 	void AutoFire();
+	// -EAWAutoEspecial : o soldado do jogador carrega o golpe especial 3 s e solta, em ciclo.
+	void AutoSpecial();
 	float AutoPhaseTime = 0.f;
 	int32 AutoPhase = 0;
 	int32 ShotsLeft = 0;

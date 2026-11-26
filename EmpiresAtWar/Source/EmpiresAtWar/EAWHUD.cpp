@@ -1,6 +1,7 @@
 #include "EAWHUD.h"
 #include "EAWCharacter.h"
 #include "Effects/EAWBloodFX.h"
+#include "Combat/MeleeCombatComponent.h"
 #include "Weapons/EAWDroppedWeapon.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
@@ -30,6 +31,20 @@ void AEAWHUD::DrawHUD()
 		DrawRect(Edge, 0.f, H - B, W, B);
 		DrawRect(Edge, 0.f, B, B, H - 2.f * B);
 		DrawRect(Edge, W - B, B, B, H - 2.f * B);
+	}
+
+	// Golpe especial: barra de carga (segurar o ataque com W por 3 s); cheia = solta com W.
+	if (Soldier->GetCombat() && Soldier->GetCombat()->IsCharging())
+	{
+		const float P = Soldier->GetCombat()->GetChargeAlpha();
+		const float BarW = 260.f, BarX = W * 0.5f - BarW * 0.5f, BarY = H * 0.62f;
+		UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+		const FString Label = P >= 1.f ? TEXT("GOLPE ESPECIAL - W para soltar") : TEXT("Golpe especial...");
+		float TW = 0.f, TH = 0.f;
+		GetTextSize(Label, TW, TH, Font, 1.f);
+		DrawText(Label, P >= 1.f ? FLinearColor(1.f, 0.35f, 0.25f) : FLinearColor(1.f, 0.92f, 0.7f), W * 0.5f - TW * 0.5f, BarY - TH - 4.f, Font, 1.f);
+		DrawRect(FLinearColor(0.1f, 0.1f, 0.1f, 0.85f), BarX, BarY, BarW, 9.f);
+		DrawRect(P >= 1.f ? FLinearColor(0.9f, 0.15f, 0.1f, 1.f) : FLinearColor(0.95f, 0.75f, 0.3f, 1.f), BarX + 1.f, BarY + 1.f, (BarW - 2.f) * P, 7.f);
 	}
 
 	// Arma no chao: aviso no centro e barra de progresso (segurar F por 3 s).
