@@ -251,3 +251,14 @@ Sem escudo (decisão do usuário). **O golpe especial não mudou.** Animações 
 
 ### Regressão encontrada e corrigida (bug #70)
 O golpe especial **parou de acertar** depois da fase 1 (a investida parava ~20 cm antes). Achado comparando versões compiladas lado a lado (antes/depois da fase 1, desfazendo uma mudança por vez): a **mola do peso do andar** mudava a mistura das pernas no instante da investida, e o alcance de todos os golpes (inclusive o especial) foi medido com a mistura antiga. Agora: mola só andando/parando em guarda; nos golpes, a mistura antiga. Também a freada nos golpes voltou a ser exatamente a antiga (a macia fica para andar/parar).
+
+## Bots novos: chegam andando, atiram e lutam com os golpes novos (2026-11-26) ✔ testado
+- **Nascem longe:** com o campo de teste (`-EAWCampo`), o bot nasce a **35 m** de frente para você (tecla **B** ou `-EAWBot`; vários bots ficam espalhados de lado, 4 m entre eles). Sem o campo, 3 m (o chão acaba a ~5 m). `-EAWBotDist=N` escolhe.
+- **Fases do bot** (log `bot: ...`):
+  1. **Aproximando** — anda (sem correr) até ~25 m: dá para ver a caminhada.
+  2. **Atirando** — troca para o mosquete (modo tiro), mira 0,9–1,8 s e atira. **Desvio:** o do cano liso (0,35°) + erro de mira de uma pessoa (0,25°) → a 25 m, ~metade dos tiros acerta o corpo. Fumaça, poeira onde a bala cai, ferimento se acertar.
+  3. **Recarregando** — se você continuar a mais de ~14 m, recarrega (15 s; `-EAWRecargaRapida` = 3 s) e atira de novo (até 2 tiros).
+  4. **Carregando** — troca para a arma branca (bot de baioneta: põe a baioneta) e vem **correndo**; metade das vezes faz o **golpe correndo** a ~3,3 m.
+  5. **Lutando** — anda de lado em volta de você; defende (55%: parry, e 35% dessas viram **defesa segurada** por 0,8–1,8 s); ataca com golpe simples, de cima, estocada, **combos** (2 cliques, 3 cliques = golpe final, 2 cliques + E), **chute** (sempre que você segura a defesa, 60%) e **golpe de salto** (12%, quando está a ~2–2,7 m). Se você fugir, corre atrás.
+- Chegando a menos de 9 m em qualquer fase de tiro, o bot larga o mosquete e vai para a luta.
+- Testado: a 35 m → andou, atirou a 24,8 m (errou por ~45 cm, a bala caiu 15 m atrás), recarregou, atirou de novo, veio correndo e lutou; golpe correndo acertou (55), golpe de salto (120 na cabeça), combo de 2, chutes em quem defende. Golpe especial do jogador continua 150. Duelo de bots (`-EAWDuelo`) continua direto na luta.

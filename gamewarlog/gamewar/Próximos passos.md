@@ -70,8 +70,8 @@ atualizado: 2026-11-26
 - [ ] Hitboxes agachado: as caixas descem junto, mas a das pernas fica parte abaixo do chão (ajustar se atrapalhar)
 - [x] Combate fase 1 — movimento suave (8 direções, molas, freada, giro) (2026-11-26)
 - [x] Combate fase 2 — ataques: golpe correndo (Shift+clique), golpe de salto (clique no ar), chute (V) (2026-11-26)
-- [ ] Bots usarem chute, golpe correndo e de salto
+- [x] Bots usarem chute, golpe correndo e de salto (2026-11-26)
 - [x] Combate fase 3 — defesa segurada andando + trocas suaves (2026-11-26)
-- [ ] Bots usarem a defesa segurada
+- [x] Bots usarem a defesa segurada (2026-11-26)
 - [x] Combate fase 4 — combos por cliques (2026-11-26)
-- [ ] Bots usarem combos
+- [x] Bots usarem combos + tiro de longe (2026-11-26)

@@ -326,9 +326,16 @@ AEAWCharacter* AEAWGameMode::SpawnBotNear(APawn* Near)
 	}
 
 	const FVector Forward = Near->GetActorForwardVector().GetSafeNormal2D();
-	float Dist = 300.f;
+	// Com o campo de teste (-EAWCampo) o bot nasce longe (35 m) e vem andando, atira e depois luta; sem o campo o chao acaba
+	// a ~5 m, entao nasce a 3 m. -EAWBotDist=N escolhe a distancia. Varios bots (tecla B): espalhados de lado.
+	bool bField = false;
+	for (TActorIterator<AActor> It(GetWorld()); It; ++It) { if (It->ActorHasTag(TEXT("EAWCampo"))) { bField = true; break; } }
+	float Dist = bField ? 3500.f : 300.f;
 	FParse::Value(FCommandLine::Get(), TEXT("EAWBotDist="), Dist);
-	const FVector Location = Near->GetActorLocation() + Forward * Dist + FVector(0.f, 0.f, 20.f);
+	static int32 BotIndex = 0;
+	const FVector SideOffset = FVector::CrossProduct(FVector::UpVector, Forward) * (bField ? 400.f * ((BotIndex % 2) ? 1.f : -1.f) * ((BotIndex + 1) / 2) : 0.f);
+	++BotIndex;
+	const FVector Location = Near->GetActorLocation() + Forward * Dist + SideOffset + FVector(0.f, 0.f, 20.f);
 	const FRotator Rotation = (-Forward).Rotation();
 
 	FActorSpawnParameters Params;

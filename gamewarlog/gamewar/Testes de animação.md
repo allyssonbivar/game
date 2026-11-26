@@ -166,3 +166,5 @@ Capturas a cada 0,2–0,3 s com `-EAWDuelo`; cortes forçados com `-EAWTesteCort
 | Combo 2 cliques + E | ✔ estocada final acerta com dano ×1,35 |
 | Golpe especial depois das 4 fases | ✔ sabre 150 (2 de 2), baioneta 160 — igual a antes (bug #70 corrigido) |
 | Regressão fases 2–3 | ✔ salto 120, correndo 110, chute a 1,4/1,5 m, defesa segurada 4 bloqueios em 10 s |
+| Bot de 35 m (anda, atira, recarrega, carrega) | ✔ 2 tiros a 24,8 m (erraram por pouco), depois correu e lutou |
+| Bot na luta | ✔ golpe correndo (55), golpe de salto (120), combo de 2, chutes em quem segura a defesa, defesa |

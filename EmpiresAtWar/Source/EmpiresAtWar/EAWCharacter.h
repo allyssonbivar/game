@@ -22,6 +22,7 @@ UCLASS()
 class EMPIRESATWAR_API AEAWCharacter : public ACharacter
 {
 	GENERATED_BODY()
+	friend class AEAWBotController;   // o bot usa as mesmas acoes do jogador (trocar arma, correr, mirar)
 
 public:
 	AEAWCharacter();

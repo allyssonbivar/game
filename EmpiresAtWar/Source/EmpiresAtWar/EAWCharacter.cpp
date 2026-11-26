@@ -1876,7 +1876,8 @@ void AEAWCharacter::OnRep_Weapon()
 {
 	if (CurrentWeapon != LastShownWeapon)
 	{
-		if (IsLocallyControlled()) SwitchDip = 1.f;   // a nova arma sobe de baixo da tela
+		// A nova arma sobe de baixo da tela (so na 1a pessoa: o tempo da troca anda em UpdateFirearmView; no bot ficava preso).
+		if (IsLocallyControlled() && IsPlayerControlled()) SwitchDip = 1.f;
 		LastShownWeapon = CurrentWeapon;
 	}
 	ApplyWeaponVisuals();
@@ -2105,7 +2106,8 @@ void AEAWCharacter::GetShotAim(FVector& Origin, FVector& Dir)
 	}
 	const FFirearmConfig& C = Firearm->Config;
 	// Desvio do cano liso (normal, desvio padrao em graus); sem mirar, o tiro sai muito mais aberto.
-	const float Sigma = AimAlpha > 0.9f ? C.AimSpreadDeg : 3.f;
+	// Bot: desvio do cano + erro de mira de uma pessoa (0,25 grau): a 25 m, ~metade dos tiros acerta o corpo.
+	const float Sigma = !IsPlayerControlled() ? C.AimSpreadDeg + 0.25f : AimAlpha > 0.9f ? C.AimSpreadDeg : 3.f;
 	auto Gauss = []()
 	{
 		const float U1 = FMath::Max(1e-6f, FMath::FRand()), U2 = FMath::FRand();
