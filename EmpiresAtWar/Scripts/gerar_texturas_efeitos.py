@@ -131,6 +131,22 @@ def splat(seed):
     return np.dstack([rgb, rgb, rgb, a])
 
 
+def puddle(seed):
+    """Poca: sangue escorrido e espalhado, borda irregular e lisa (sem respingos), centro mais escuro e espesso."""
+    r = np.random.default_rng(seed)
+    ang = np.arctan2(v, u); rad = np.sqrt(u ** 2 + v ** 2)
+    edge = 0.62 + sum(r.uniform(0, 0.06) / kk ** 0.3 * np.cos(kk * ang + r.uniform(0, 6.28)) for kk in range(1, 7))
+    edge = edge + (fbm(N, seed, 4, 3) - 0.5) * 0.12
+    a = np.clip((edge - rad) * 25, 0, 1)
+    for _ in range(r.integers(3, 6)):   # lobulos que escorreram para o lado
+        th = r.uniform(0, 6.28); d0 = r.uniform(0.45, 0.7); rr = r.uniform(0.12, 0.2)
+        a = np.maximum(a, np.clip((rr - np.sqrt((u - d0 * np.cos(th)) ** 2 + (v - d0 * np.sin(th)) ** 2)) * 25, 0, 1))
+    a *= np.clip((0.97 - rad) * 20, 0, 1)
+    n = fbm(N, seed + 5, 5, 6)
+    rgb = np.clip(0.55 + 0.35 * (n - 0.5) + 0.35 * np.clip(rad / 0.7, 0, 1) ** 3, 0, 1)   # centro escuro, borda mais clara
+    return np.dstack([rgb, rgb, rgb, a])
+
+
 def atlas(tiles, name):
     big = np.zeros((N * 2, N * 2, 4), np.float32)
     for i, t in enumerate(tiles):
@@ -145,4 +161,4 @@ def atlas(tiles, name):
 os.makedirs(OUT, exist_ok=True)
 atlas([puff(11), puff(23), puff(37), puff(41)], "T_Fumaca.png")
 atlas([streak(5, 3), streak(8, 6), streak(13, 1), drops(17, 22, False)], "T_Sangue_Jato.png")
-atlas([splat(3), splat(9), splat(21), splat(29)], "T_Sangue_Mancha.png")
+atlas([splat(3), splat(9), splat(21), puddle(29)], "T_Sangue_Mancha.png")   # quadro 3 = poca

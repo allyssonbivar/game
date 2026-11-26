@@ -14,6 +14,7 @@
 
 UMaterialInterface* AEAWBloodFX::StainMaterial = nullptr;
 TArray<TWeakObjectPtr<UDecalComponent>> AEAWBloodFX::Stains;
+TMap<TWeakObjectPtr<AActor>, TArray<TWeakObjectPtr<UDecalComponent>>> AEAWBloodFX::OwnedStains;
 
 AEAWBloodFX::AEAWBloodFX()
 {
@@ -63,10 +64,11 @@ void AEAWBloodFX::FindGround(const FVector& From)
 	}
 }
 
-void AEAWBloodFX::Burst(UWorld* World, const FVector& Location, const FVector& Dir, int32 Count, float Speed)
+void AEAWBloodFX::Burst(UWorld* World, const FVector& Location, const FVector& Dir, int32 Count, float Speed, AActor* InStainOwner)
 {
 	if (AEAWBloodFX* FX = SpawnFX(World, Location))
 	{
+		FX->StainOwner = InStainOwner;
 		// Como nas referencias: leque de filetes rapidos e finos, gotas e uma nevoa curta no ponto.
 		FX->AddStreaks(Location, Dir, Count * 3, Speed * 1.7f, 32.f, 1.3f);
 		FX->AddDrops(Location, Dir, Count * 2, Speed, 45.f);
@@ -93,33 +95,114 @@ void AEAWBloodFX::Jet(UWorld* World, USkeletalMeshComponent* Mesh, FName Bone, c
 		FX->JetSpeed = InJetSpeed;
 		FX->JetPhase = FMath::FRand();
 		FX->bJetHeartbeat = bHeartbeat;
+		FX->StainOwner = Mesh->GetOwner();
 	}
 }
 
-void AEAWBloodFX::SpawnStain(UWorld* World, const FVector& Location, float Size)
+UDecalComponent* AEAWBloodFX::SpawnStain(UWorld* World, const FVector& Location, float Size, AActor* Owner, int32 Variant, int32 SortOrder)
 {
 	if (!World || !StainMaterial)
 	{
-		return;
+		return nullptr;
 	}
 	const FRotator Rot(-90.f, FMath::FRandRange(0.f, 360.f), 0.f);
-	UDecalComponent* D = UGameplayStatics::SpawnDecalAtLocation(World, StainMaterial, FVector(8.f, Size, Size * FMath::FRandRange(0.8f, 1.2f)), Location, Rot, 60.f);
-	if (D)
+	// Sem tempo de vida: o sangue fica no chao (profundidade de 8 cm: so pinta o chao e a parte do corpo encostada nele).
+	UDecalComponent* D = UGameplayStatics::SpawnDecalAtLocation(World, StainMaterial, FVector(8.f, Size, Size * FMath::FRandRange(0.8f, 1.2f)), Location, Rot, 0.f);
+	if (!D)
 	{
-		if (UMaterialInstanceDynamic* MID = D->CreateDynamicMaterialInstance())
+		return nullptr;
+	}
+	D->SortOrder = SortOrder;
+	if (UMaterialInstanceDynamic* MID = D->CreateDynamicMaterialInstance())
+	{
+		MID->SetScalarParameterValue(TEXT("Variante"), (float)(Variant >= 0 ? Variant : FMath::RandRange(0, 2)));
+	}
+	TArray<TWeakObjectPtr<UDecalComponent>>& List = Owner ? OwnedStains.FindOrAdd(Owner) : Stains;
+	List.Add(D);
+	const int32 Max = Owner ? 200 : 300;
+	while (List.Num() > Max)
+	{
+		if (List[0].IsValid())
 		{
-			MID->SetScalarParameterValue(TEXT("Variante"), (float)FMath::RandRange(0, 3));
+			List[0]->DestroyComponent();
 		}
-		D->SetFadeOut(45.f, 15.f, false);
-		Stains.Add(D);
-		while (Stains.Num() > 120)
+		List.RemoveAt(0);
+	}
+	return D;
+}
+
+void AEAWBloodFX::ClearStainsOf(AActor* Owner)
+{
+	if (TArray<TWeakObjectPtr<UDecalComponent>>* List = OwnedStains.Find(Owner))
+	{
+		for (TWeakObjectPtr<UDecalComponent>& D : *List)
 		{
-			if (Stains[0].IsValid())
+			if (D.IsValid())
 			{
-				Stains[0]->DestroyComponent();
+				D->DestroyComponent();
 			}
-			Stains.RemoveAt(0);
 		}
+		OwnedStains.Remove(Owner);
+	}
+}
+
+void AEAWBloodFX::Pool(UWorld* World, USkeletalMeshComponent* Mesh, FName Bone, float MaxSize, float GrowTime, float Delay)
+{
+	if (!Mesh)
+	{
+		return;
+	}
+	if (AEAWBloodFX* FX = SpawnFX(World, Mesh->GetSocketLocation(Bone)))
+	{
+		FX->PoolMesh = Mesh;
+		FX->PoolBone = Bone;
+		FX->PoolMax = MaxSize;
+		FX->PoolGrow = FMath::Max(0.5f, GrowTime);
+		FX->PoolDelay = Delay;
+		FX->PoolTime = 0.f;
+		FX->StainOwner = Mesh->GetOwner();
+	}
+}
+
+void AEAWBloodFX::UpdatePool(float Dt)
+{
+	if (PoolTime < 0.f)
+	{
+		return;
+	}
+	PoolTime += Dt;
+	if (PoolTime < PoolDelay)
+	{
+		return;
+	}
+	if (!PoolDecal.IsValid())
+	{
+		if (!PoolMesh.IsValid())
+		{
+			PoolTime = -1.f;
+			return;
+		}
+		// Corpo no chao: a poca nasce no chao embaixo do osso (rastreio so no cenario).
+		const FVector From = PoolMesh->GetSocketLocation(PoolBone) + FVector(0.f, 0.f, 30.f);
+		FHitResult Hit;
+		FCollisionObjectQueryParams Objects(ECC_WorldStatic);
+		const float Z = GetWorld()->LineTraceSingleByObjectType(Hit, From, From - FVector(0.f, 0.f, 300.f), Objects) ? Hit.ImpactPoint.Z : GroundZ;
+		PoolDecal = SpawnStain(GetWorld(), FVector(From.X, From.Y, Z), 10.f, StainOwner.Get(), 3, 5);
+		if (!PoolDecal.IsValid())
+		{
+			PoolTime = -1.f;
+			return;
+		}
+	}
+	// Cresce rapido no comeco e devagar no fim (o sangue escorre e se espalha).
+	const float T = FMath::Clamp((PoolTime - PoolDelay) / PoolGrow, 0.f, 1.f);
+	const float Size = FMath::Lerp(10.f, PoolMax, 1.f - FMath::Square(1.f - T));
+	const FVector Cur = PoolDecal->DecalSize;
+	PoolDecal->DecalSize = FVector(8.f, Size, Size * (Cur.Z / FMath::Max(1.f, Cur.Y)));
+	PoolDecal->MarkRenderStateDirty();
+	if (T >= 1.f)
+	{
+		PoolTime = -1.f;   // terminou de crescer; a mancha fica
 	}
 }
 
@@ -158,6 +241,7 @@ void AEAWBloodFX::AddMist(const FVector& Location, const FVector& Dir, int32 Cou
 void AEAWBloodFX::Tick(float Dt)
 {
 	Super::Tick(Dt);
+	UpdatePool(Dt);
 
 	// Jato arterial: pulsa no ritmo do coracao (~85 por minuto, caindo com a perda de sangue) e enfraquece ate parar.
 	if (JetDuration > 0.f)
@@ -212,9 +296,9 @@ void AEAWBloodFX::Tick(float Dt)
 		Dr.P += Dr.V * Dt;
 		if (Dr.Kind != EKind::Mist && Dr.P.Z <= GroundZ + 0.5f)
 		{
-			if (FMath::FRand() < (Dr.Kind == EKind::Streak ? 0.3f : 0.12f))
+			if (FMath::FRand() < (Dr.Kind == EKind::Streak ? 0.45f : 0.2f))
 			{
-				SpawnStain(GetWorld(), FVector(Dr.P.X, Dr.P.Y, GroundZ), 5.f + 9.f * Dr.Size);
+				SpawnStain(GetWorld(), FVector(Dr.P.X, Dr.P.Y, GroundZ), 5.f + 10.f * Dr.Size, StainOwner.Get());
 			}
 			Items.RemoveAtSwap(i);
 		}
@@ -258,7 +342,7 @@ void AEAWBloodFX::Tick(float Dt)
 	Sprites->MarkRenderStateDirty();
 	MistSprites->MarkRenderStateDirty();
 
-	if (Items.Num() == 0 && JetDuration <= 0.f)
+	if (Items.Num() == 0 && JetDuration <= 0.f && PoolTime < 0.f)
 	{
 		Destroy();
 	}

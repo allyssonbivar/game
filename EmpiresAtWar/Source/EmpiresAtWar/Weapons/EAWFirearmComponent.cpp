@@ -252,7 +252,7 @@ void UEAWFirearmComponent::HandleBallHit(const FHitResult& Hit, const FVector& V
 		{
 			if (Region == EBodyRegion::Neck && Damage >= 200.f)
 			{
-				Victim->MarkNeckDeath();   // antes do dano: a morte vira a animacao com o jato arterial
+				Victim->MarkDeathAnim(1);   // antes do dano: a morte vira a animacao com o jato arterial
 			}
 			Victim->GetWounds()->ApplyImpact(Region, Damage);
 		}

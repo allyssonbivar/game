@@ -105,8 +105,11 @@ void AEAWGameMode::HandleStartingNewPlayer_Implementation(APlayerController* New
 				const FVector Neck = Bot->GetActorLocation() + FVector(0.f, 0.f, 55.f);
 				const FVector Shooter = NewPlayer->GetPawn()->GetActorLocation();
 				const FVector Side = FVector::CrossProduct((Neck - Shooter).GetSafeNormal2D(), FVector::UpVector);
-				const FVector CamLoc = (Neck + Shooter) * 0.5f + Side * CamDist + FVector(0.f, 0.f, -10.f);
-				const FVector LookAt = Neck * 0.7f + Shooter * 0.3f;
+				// -EAWCamAlto=N : sobe a camera N cm e olha para o chao do bot (ver a poca de sangue).
+				float CamUp = 0.f;
+				FParse::Value(Cmd, TEXT("EAWCamAlto="), CamUp);
+				const FVector CamLoc = (Neck + Shooter) * 0.5f + Side * CamDist + FVector(0.f, 0.f, -10.f + CamUp);
+				const FVector LookAt = CamUp > 0.f ? Bot->GetActorLocation() - FVector(0.f, 0.f, 80.f) : Neck * 0.7f + Shooter * 0.3f;
 				if (ACameraActor* Cam = GetWorld()->SpawnActor<ACameraActor>(CamLoc, (LookAt - CamLoc).Rotation()))
 				{
 					Cam->GetCameraComponent()->SetFieldOfView(70.f);
@@ -116,12 +119,12 @@ void AEAWGameMode::HandleStartingNewPlayer_Implementation(APlayerController* New
 		}
 	}
 
-	if (FParse::Param(Cmd, TEXT("EAWAutoAtaque")) && NewPlayer)
+	if (FParse::Param(Cmd, TEXT("EAWAutoAtaque")) && NewPlayer && !AutoPC.IsValid())
 	{
 		AutoPC = NewPlayer;
 		GetWorldTimerManager().SetTimer(AutoTimer, this, &AEAWGameMode::AutoAttack, 1.8f, true, 0.6f);
 	}
-	if (FParse::Param(Cmd, TEXT("EAWAutoEspecial")) && NewPlayer)
+	if (FParse::Param(Cmd, TEXT("EAWAutoEspecial")) && NewPlayer && !AutoPC.IsValid())
 	{
 		AutoPC = NewPlayer;
 		GetWorldTimerManager().SetTimer(AutoTimer, this, &AEAWGameMode::AutoSpecial, 0.1f, true, 1.0f);
@@ -146,7 +149,7 @@ void AEAWGameMode::HandleStartingNewPlayer_Implementation(APlayerController* New
 		}
 	}
 
-	if (FParse::Param(Cmd, TEXT("EAWAutoTiro")) && NewPlayer)
+	if (FParse::Param(Cmd, TEXT("EAWAutoTiro")) && NewPlayer && !AutoPC.IsValid())
 	{
 		AutoPC = NewPlayer;
 		GetWorldTimerManager().SetTimer(AutoTimer, this, &AEAWGameMode::AutoFire, 0.1f, true, 0.5f);
@@ -246,7 +249,17 @@ void AEAWGameMode::AutoSpecial()
 	AutoPhaseTime += 0.1f;
 	switch (AutoPhase)
 	{
-	case 0: if (C->GetState() == EMeleeState::Idle && AutoPhaseTime > 1.0f) { C->RequestChargeStart(); AutoPhase = 1; AutoPhaseTime = 0.f; } break;
+	case 0:
+	{
+		// So carrega se ainda houver alguem vivo para acertar.
+		bool bTarget = false;
+		for (TActorIterator<AEAWCharacter> It(GetWorld()); It; ++It)
+		{
+			bTarget |= *It != Soldier && It->GetWounds() && It->GetWounds()->CanFight();
+		}
+		if (bTarget && C->GetState() == EMeleeState::Idle && AutoPhaseTime > 1.0f) { C->RequestChargeStart(); AutoPhase = 1; AutoPhaseTime = 0.f; }
+		break;
+	}
 	case 1: if (C->GetChargeAlpha() >= 1.f) { C->RequestChargeRelease(true, EAttackDirection::Special); AutoPhase = 2; AutoPhaseTime = 0.f; } break;
 	default: if (AutoPhaseTime > 4.0f) { AutoPhase = 0; AutoPhaseTime = 0.f; } break;
 	}

@@ -165,13 +165,18 @@ mel.recompile_material(m)
 d = novo("M_Sangue_Mancha")
 d.set_editor_property("material_domain", unreal.MaterialDomain.MD_DEFERRED_DECAL)
 d.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+# DBuffer cor + rugosidade: troca a cor e a rugosidade do chao, sem mexer na normal (no modo translucido o decal
+# regravava a normal do chao e a mancha ficava lilas; no modo "stain" ficava quase preta/azulada) - 2026-11-26.
+_modo = [m for m in dir(unreal.DecalBlendMode) if "BUFFER" in m and "COLOR" in m and "ROUGH" in m and "NORMAL" not in m]
+unreal.log("EFEITO: modo do decal = " + str(_modo))
+d.set_editor_property("decal_blend_mode", getattr(unreal.DecalBlendMode, _modo[0]))
 var = expr(d, E.MaterialExpressionScalarParameter, -1500, 300, parameter_name="Variante", default_value=0.0)
 s = amostra(d, t_mancha, uv_atlas(d, var, -1200, 300), -250, 300)
-cor = op(d, E.MaterialExpressionMultiply, canal(d, s, "g", -150, 120), const3(d, (0.07, 0.002, 0.002), -250, 0), -50, 0)
+cor = op(d, E.MaterialExpressionMultiply, canal(d, s, "g", -150, 120), const3(d, (0.10, 0.004, 0.003), -250, 0), -50, 0)
 mel.connect_material_property(cor, "", unreal.MaterialProperty.MP_BASE_COLOR)
 # Fosco o bastante para nao refletir o ceu claro (ficava rosado no teste de 2026-11-25).
-mel.connect_material_property(const(d, 0.45, 150, 220), "", unreal.MaterialProperty.MP_ROUGHNESS)
-mel.connect_material_property(const(d, 0.3, 150, 300), "", unreal.MaterialProperty.MP_SPECULAR)
+mel.connect_material_property(const(d, 0.5, 150, 220), "", unreal.MaterialProperty.MP_ROUGHNESS)   # umido, sem espelhar o ceu
+mel.connect_material_property(const(d, 0.12, 150, 300), "", unreal.MaterialProperty.MP_SPECULAR)
 alfa = op(d, E.MaterialExpressionMultiply, canal(d, s, "r", -150, 520), const(d, 0.95, -150, 620), 0, 520)
 mel.connect_material_property(alfa, "", unreal.MaterialProperty.MP_OPACITY)
 mel.recompile_material(d)

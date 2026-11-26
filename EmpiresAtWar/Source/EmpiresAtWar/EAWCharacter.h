@@ -46,8 +46,10 @@ public:
 
 	UMeleeCombatComponent* GetCombat() const { return Combat; }
 	UWoundComponent* GetWounds() const { return Wounds; }
-	/** Servidor: a bala que vai matar acertou o pescoco (chamar antes de aplicar o dano). */
-	void MarkNeckDeath();
+	/** Servidor, antes do dano que pode matar: 1 = tiro no pescoco, 2 = golpe especial. */
+	void MarkDeathAnim(uint8 Kind);
+	/** Servidor, depois do dano: o soldado sobreviveu, desmarca. */
+	void ClearDeathAnimMark();
 
 	/** Trote normal (3,0 m/s; antes 1,4 - lento demais). As animacoes de trote foram feitas nessas velocidades. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movimento")
@@ -195,19 +197,23 @@ protected:
 
 	void StartRagdoll();
 
-	// ---------- Morte por tiro no pescoco ----------
-	// Bala no pescoco: em vez do ragdoll, toca AS_Morte_Pescoco (Mixamo "Dying", transferida no Blender) e a arteria
-	// esguicha no ritmo do coracao. O servidor marca bNeckDeath antes do dano; o valor chega aos clientes no mesmo
-	// pacote do estado "fora de combate", entao todas as maquinas tocam a mesma morte.
-	UPROPERTY(ReplicatedUsing = OnRep_NeckDeath) bool bNeckDeath = false;
-	UFUNCTION() void OnRep_NeckDeath();
-	bool bNeckDying = false;
+	// ---------- Mortes com animacao (em vez do ragdoll) ----------
+	// 1 = tiro no pescoco: AS_Morte_Pescoco (Mixamo "Dying") + arteria esguichando no ritmo do coracao.
+	// 2 = golpe especial (faca, espada, baioneta): AS_Morte_Especial (Mixamo, "dycomboFacaEspadaBaioneta") + ferida sangrando.
+	// Nas duas: poca de sangue crescendo embaixo do corpo; o sangue no chao fica ate o soldado renascer.
+	// O servidor marca DeathAnimKind antes do dano; o valor chega aos clientes no mesmo pacote do estado
+	// "fora de combate", entao todas as maquinas tocam a mesma morte.
+	UPROPERTY(ReplicatedUsing = OnRep_DeathAnim) uint8 DeathAnimKind = 0;
+	UFUNCTION() void OnRep_DeathAnim();
+	bool bAnimDying = false;
 	bool bDeathBegun = false;
-	void StartNeckDeath();
-	void EndNeckDeath();
+	void StartAnimDeath();
+	void EndAnimDeath();
 	/** Comum as duas mortes: a camera do dono, larga a arma, desliga capsula e hitboxes. */
 	void BeginDeathCommon();
 	UPROPERTY() class UAnimSequence* AnimMortePescoco = nullptr;
+	UPROPERTY() class UAnimSequence* AnimMorteEspecial = nullptr;
+	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 
 	// ---------- Peso e fisica ----------
 	/** Giro maximo da camera (graus/s) durante preparacao e golpe - o golpe "compromete" o corpo. */

@@ -190,6 +190,7 @@ AEAWCharacter::AEAWCharacter()
 	EAW_ANIM(AnimMAparoDir, "AS_Mosquete_AparoDir"); EAW_ANIM(AnimMAparoDirFP, "AS_Mosquete_AparoDir_FP");
 	EAW_ANIM(AnimMAparoEsq, "AS_Mosquete_AparoEsq"); EAW_ANIM(AnimMAparoEsqFP, "AS_Mosquete_AparoEsq_FP");
 	EAW_ANIM(AnimMortePescoco, "AS_Morte_Pescoco");
+	EAW_ANIM(AnimMorteEspecial, "AS_Morte_Especial");
 	EAW_ANIM(AnimSabreEspecial, "AS_Sabre_Especial"); EAW_ANIM(AnimSabreEspecialFP, "AS_Sabre_Especial_FP");
 	EAW_ANIM(AnimMEspecial, "AS_Mosquete_Especial"); EAW_ANIM(AnimMEspecialFP, "AS_Mosquete_Especial_FP");
 	EAW_ANIM(AnimMBloqueado, "AS_Mosquete_Bloqueado"); EAW_ANIM(AnimMBloqueadoFP, "AS_Mosquete_Bloqueado_FP");
@@ -308,7 +309,7 @@ void AEAWCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 	DOREPLIFETIME(AEAWCharacter, bSprinting);
 	DOREPLIFETIME(AEAWCharacter, CurrentWeapon);
 	DOREPLIFETIME(AEAWCharacter, bBayonet);
-	DOREPLIFETIME(AEAWCharacter, bNeckDeath);
+	DOREPLIFETIME(AEAWCharacter, DeathAnimKind);
 	DOREPLIFETIME(AEAWCharacter, PrimaryWeapon);
 	DOREPLIFETIME(AEAWCharacter, SecondaryWeapon);
 }
@@ -676,8 +677,8 @@ void AEAWCharacter::PlaySpecialHitEffects(AEAWCharacter* Other, const FVector& L
 	// A lamina atravessa: respingo de volta na entrada, e pelas costas um jorro longo que perde forca em ~1,6 s.
 	const FVector D = Dir.GetSafeNormal();
 	const FVector Exit = Location + D * 28.f;
-	AEAWBloodFX::Burst(GetWorld(), Location, -D + FVector(0.f, 0.f, 0.35f), 16, 260.f);
-	AEAWBloodFX::Burst(GetWorld(), Exit, D + FVector(0.f, 0.f, 0.15f), 34, 620.f);
+	AEAWBloodFX::Burst(GetWorld(), Location, -D + FVector(0.f, 0.f, 0.35f), 16, 260.f, Other);
+	AEAWBloodFX::Burst(GetWorld(), Exit, D + FVector(0.f, 0.f, 0.15f), 34, 620.f, Other);
 	const FName Bone = Other->GetMesh()->FindClosestBone(Location);
 	AEAWBloodFX::Jet(GetWorld(), Other->GetMesh(), Bone != NAME_None ? Bone : FName(TEXT("spine_03")), Exit, (D + FVector(0.f, 0.f, 0.2f)).GetSafeNormal(),
 		1.6f, 420.f, 720.f, false);
@@ -702,7 +703,7 @@ void AEAWCharacter::HandleImpact(FVector Location, EBodyRegion Region, bool bPar
 	{
 		// Borrifo na direcao do golpe (mais forte na cabeca/pescoco).
 		const bool bVital = Region == EBodyRegion::Head || Region == EBodyRegion::Neck;
-		AEAWBloodFX::Burst(GetWorld(), Location, Dir + FVector(0.f, 0.f, 0.25f), bVital ? 40 : 25, bVital ? 420.f : 330.f);
+		AEAWBloodFX::Burst(GetWorld(), Location, Dir + FVector(0.f, 0.f, 0.25f), bVital ? 40 : 25, bVital ? 420.f : 330.f, Other);
 		Other->NoteHit(Region, Location, Dir);
 	}
 	if (Other && !Other->Wounds->CanFight())
@@ -1036,33 +1037,49 @@ void AEAWCharacter::BeginDeathCommon()
 	}
 }
 
-void AEAWCharacter::MarkNeckDeath()
+void AEAWCharacter::MarkDeathAnim(uint8 Kind)
 {
-	if (HasAuthority() && bAnimated && AnimMortePescoco && !GetMesh()->IsSimulatingPhysics() && Wounds->CanFight())
+	UAnimSequence* Anim = Kind == 1 ? AnimMortePescoco : Kind == 2 ? AnimMorteEspecial : nullptr;
+	if (HasAuthority() && bAnimated && Anim && !GetMesh()->IsSimulatingPhysics() && Wounds->CanFight())
 	{
-		bNeckDeath = true;
+		DeathAnimKind = Kind;
 	}
 }
 
-void AEAWCharacter::OnRep_NeckDeath()
+void AEAWCharacter::ClearDeathAnimMark()
 {
-	if (bNeckDeath)
+	if (HasAuthority() && !bAnimDying && Wounds->CanFight())
 	{
-		StartNeckDeath();
+		DeathAnimKind = 0;
+	}
+}
+
+void AEAWCharacter::EndPlay(const EEndPlayReason::Type Reason)
+{
+	AEAWBloodFX::ClearStainsOf(this);   // o sangue deste soldado some quando ele sai do jogo / renasce
+	Super::EndPlay(Reason);
+}
+
+void AEAWCharacter::OnRep_DeathAnim()
+{
+	if (DeathAnimKind != 0)
+	{
+		StartAnimDeath();
 	}
 	else
 	{
-		EndNeckDeath();
+		EndAnimDeath();
 	}
 }
 
-void AEAWCharacter::StartNeckDeath()
+void AEAWCharacter::StartAnimDeath()
 {
-	if (bNeckDying || !bAnimated || !AnimMortePescoco || GetMesh()->IsSimulatingPhysics())
+	UAnimSequence* DeathAnim = DeathAnimKind == 2 ? AnimMorteEspecial : AnimMortePescoco;
+	if (bAnimDying || !bAnimated || !DeathAnim || GetMesh()->IsSimulatingPhysics())
 	{
 		return;
 	}
-	bNeckDying = true;
+	bAnimDying = true;
 	BeginDeathCommon();
 	GetCharacterMovement()->StopMovementImmediately();
 	GetCharacterMovement()->DisableMovement();
@@ -1072,11 +1089,31 @@ void AEAWCharacter::StartNeckDeath()
 		GetMesh()->SetAllBodiesBelowSimulatePhysics(TEXT("spine_01"), false, true);
 		HitReactAlpha = 0.f;
 	}
-	// Corpo inteiro na animacao da morte (cambaleia, cai de joelhos e de brucos); a ultima pose fica.
-	GetMesh()->PlayAnimation(AnimMortePescoco, false);
+	// Corpo inteiro na animacao da morte; a ultima pose fica.
+	GetMesh()->PlayAnimation(DeathAnim, false);
+	if (DeathAnimKind == 2)
+	{
+		// Golpe especial: a ferida do peito sangra pelas duas aberturas (frente e costas) no ritmo do coracao,
+		// pingando no chao enquanto ele cai; depois a poca cresce embaixo do tronco.
+		if (AEAWBloodFX::IsGoreEnabled())
+		{
+			const FTransform Chest = GetMesh()->GetSocketTransform(TEXT("spine_03"));
+			const FVector Fwd = GetActorForwardVector();
+			AEAWBloodFX::Jet(GetWorld(), GetMesh(), TEXT("spine_03"), Chest.GetLocation() + Fwd * 14.f, (Fwd + FVector(0.f, 0.f, -0.3f)).GetSafeNormal(),
+				9.f, 160.f, 140.f);
+			AEAWBloodFX::Jet(GetWorld(), GetMesh(), TEXT("spine_03"), Chest.GetLocation() - Fwd * 14.f, (-Fwd + FVector(0.f, 0.f, -0.2f)).GetSafeNormal(),
+				7.f, 110.f, 110.f);
+			// A poca nasce quando o corpo termina de cair (a animacao dura 3,3 s).
+			AEAWBloodFX::Pool(GetWorld(), GetMesh(), TEXT("spine_03"), 85.f, 16.f, 3.2f);
+			AEAWBloodFX::Pool(GetWorld(), GetMesh(), TEXT("pelvis"), 50.f, 14.f, 3.6f);
+		}
+		UE_LOG(LogEAWCombat, Log, TEXT("%s: morto pelo golpe especial -> animacao de morte e poca de sangue"), *GetName());
+		return;
+	}
 	// Arteria cortada: dois jatos (entrada e saida da bala) que pulsam com o coracao e enfraquecem em ~10 s.
 	if (AEAWBloodFX::IsGoreEnabled())
 	{
+		AEAWBloodFX::Pool(GetWorld(), GetMesh(), TEXT("neck_01"), 70.f, 15.f, 5.0f);   // animacao de 5,8 s
 		const FTransform Neck = GetMesh()->GetSocketTransform(TEXT("neck_01"));
 		const FVector Side = GetActorRightVector();
 		const FVector Fwd = GetActorForwardVector();
@@ -1089,14 +1126,15 @@ void AEAWCharacter::StartNeckDeath()
 	UE_LOG(LogEAWCombat, Log, TEXT("%s: tiro no pescoco -> animacao de morte e jato arterial"), *GetName());
 }
 
-void AEAWCharacter::EndNeckDeath()
+void AEAWCharacter::EndAnimDeath()
 {
-	if (!bNeckDying)
+	if (!bAnimDying)
 	{
 		return;
 	}
-	bNeckDying = false;
+	bAnimDying = false;
 	bDeathBegun = false;
+	AEAWBloodFX::ClearStainsOf(this);
 	GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 	GetMesh()->SetAnimInstanceClass(UEAWAnimInstance::StaticClass());
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
@@ -1119,10 +1157,10 @@ void AEAWCharacter::StartRagdoll()
 	{
 		return;
 	}
-	// Tiro no pescoco: a morte e a animacao com o jato arterial, nao o ragdoll.
-	if (bNeckDeath || bNeckDying)
+	// Tiro no pescoco / golpe especial: a morte e a animacao, nao o ragdoll.
+	if (DeathAnimKind != 0 || bAnimDying)
 	{
-		StartNeckDeath();
+		StartAnimDeath();
 		return;
 	}
 	BeginDeathCommon();
@@ -1271,7 +1309,7 @@ void AEAWCharacter::TryDismember()
 	AddCap(Piece, Bone, CutPoint, -OutDir, Diameter);
 	AEAWBloodFX::Jet(GetWorld(), Body, Parent, CutPoint, OutDir + FVector(0.f, 0.f, 0.3f), 1.6f, 70.f);
 	AEAWBloodFX::Jet(GetWorld(), Piece, Bone, CutPoint, -OutDir, 0.7f, 35.f);
-	AEAWBloodFX::Burst(GetWorld(), CutPoint, LastHitDir + FVector(0.f, 0.f, 0.5f), 45, 380.f);
+	AEAWBloodFX::Burst(GetWorld(), CutPoint, LastHitDir + FVector(0.f, 0.f, 0.5f), 45, 380.f, this);
 
 	// Limite de pecas soltas no mundo (pedido: 20 por area) - as mais antigas somem.
 	static TArray<TWeakObjectPtr<USkeletalMeshComponent>> AllPieces;
@@ -1372,8 +1410,9 @@ void AEAWCharacter::ResetSoldier()
 	WoundMarks = 0;
 	Firearm->ResetFirearm();
 	bDeathBegun = false;
-	bNeckDeath = false;
-	EndNeckDeath();
+	DeathAnimKind = 0;
+	AEAWBloodFX::ClearStainsOf(this);
+	EndAnimDeath();
 	AttachWeaponToSkeleton();
 	if (bAnimated && GetMesh()->IsSimulatingPhysics())
 	{
@@ -1817,10 +1856,10 @@ void AEAWCharacter::ReceiveBullet(const FVector& Location, const FVector& Dir, F
 		++WoundMarks;
 	}
 	// Respingo de volta na entrada; com energia alta a bala atravessa e espirra do outro lado.
-	AEAWBloodFX::Burst(GetWorld(), Location, -D + FVector(0.f, 0.f, 0.3f), 10, 160.f);
+	AEAWBloodFX::Burst(GetWorld(), Location, -D + FVector(0.f, 0.f, 0.3f), 10, 160.f, this);
 	if (EnergyJ > 600.f)
 	{
-		AEAWBloodFX::Burst(GetWorld(), Location + D * 25.f, D + FVector(0.f, 0.f, 0.1f), 22, 380.f);
+		AEAWBloodFX::Burst(GetWorld(), Location + D * 25.f, D + FVector(0.f, 0.f, 0.1f), 22, 380.f, this);
 	}
 	LastHitDir = D.GetSafeNormal2D();
 	if (Wounds->CanFight())

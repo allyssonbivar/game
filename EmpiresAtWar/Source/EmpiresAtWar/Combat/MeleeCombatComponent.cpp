@@ -2,6 +2,7 @@
 #include "Combat/MeleeWeaponData.h"
 #include "Combat/WoundComponent.h"
 #include "Combat/BodyRegionLibrary.h"
+#include "EAWCharacter.h"
 #include "EmpiresAtWar.h"
 #include "Components/SceneComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -636,7 +637,17 @@ void UMeleeCombatComponent::ResolveHit(const FHitResult& Hit)
 
 	const FVector HitDirection = (Hit.TraceEnd - Hit.TraceStart).GetSafeNormal();
 	AController* InstigatorController = Owner->GetInstigatorController();
+	// Golpe especial: se matar, a vitima toca a animacao de morte propria (marcada antes do dano; desmarcada se sobreviver).
+	AEAWCharacter* VictimSoldier = Rep.Direction == EAttackDirection::Special ? Cast<AEAWCharacter>(Victim) : nullptr;
+	if (VictimSoldier)
+	{
+		VictimSoldier->MarkDeathAnim(2);
+	}
 	UGameplayStatics::ApplyPointDamage(Victim, Damage, HitDirection, Hit, InstigatorController, Owner, UDamageType::StaticClass());
+	if (VictimSoldier)
+	{
+		VictimSoldier->ClearDeathAnimMark();
+	}
 
 	// Levar um golpe interrompe quem esta preparando ou se recuperando (troca de golpes no Release continua).
 	if (VictimCombat)

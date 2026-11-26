@@ -26,14 +26,20 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	/** Borrifo a partir de Location, na direcao Dir (filetes + gotas + nevoa). */
-	static void Burst(UWorld* World, const FVector& Location, const FVector& Dir, int32 Count, float Speed);
+	static void Burst(UWorld* World, const FVector& Location, const FVector& Dir, int32 Count, float Speed, AActor* StainOwner = nullptr);
+
+	/** Poca de sangue embaixo do osso: aparece depois de Delay s (corpo no chao) e cresce ate MaxSize cm em GrowTime s. */
+	static void Pool(UWorld* World, USkeletalMeshComponent* Mesh, FName Bone, float MaxSize, float GrowTime, float Delay);
+
+	/** Apaga o sangue no chao deixado por este soldado (ao renascer / sair do jogo). */
+	static void ClearStainsOf(AActor* Owner);
 
 	/** Jato pulsante preso ao osso Bone (o ponto e a direcao acompanham o osso, mesmo em ragdoll). */
 	static void Jet(UWorld* World, USkeletalMeshComponent* Mesh, FName Bone, const FVector& WorldPoint, const FVector& WorldDir, float Duration, float Rate,
 		float JetSpeed = 320.f, bool bHeartbeat = true);
 
-	/** Mancha no chao (maximo de 120 no mundo; as mais antigas somem). */
-	static void SpawnStain(UWorld* World, const FVector& Location, float Size);
+	/** Mancha no chao. Fica ate o dono renascer (com dono) ou ate passar de 300 no mundo (sem dono). Variant 0..2 = respingo, 3 = poca. */
+	static class UDecalComponent* SpawnStain(UWorld* World, const FVector& Location, float Size, AActor* Owner = nullptr, int32 Variant = -1, int32 SortOrder = 0);
 
 	/** Desligado com -EAWSemSangue (opcao do jogador, como pede o documento). */
 	static bool IsGoreEnabled();
@@ -69,6 +75,17 @@ private:
 	float JetSpeed = 320.f;
 	float JetPhase = 0.f;
 	bool bJetHeartbeat = true;   // false = jorro continuo que enfraquece (ferida que atravessa)
+	TWeakObjectPtr<AActor> StainOwner;   // dono das manchas que este efeito deixa no chao
+
+	// Poca
+	TWeakObjectPtr<USkeletalMeshComponent> PoolMesh;
+	FName PoolBone;
+	TWeakObjectPtr<class UDecalComponent> PoolDecal;
+	float PoolMax = 0.f;
+	float PoolGrow = 1.f;
+	float PoolDelay = 0.f;
+	float PoolTime = -1.f;   // < 0 = sem poca
+	void UpdatePool(float Dt);
 	float EmitAccumulator = 0.f;
 
 	void AddStreaks(const FVector& Location, const FVector& Dir, int32 Count, float Speed, float SpreadDeg, float SizeScale);
@@ -79,4 +96,5 @@ private:
 	static AEAWBloodFX* SpawnFX(UWorld* World, const FVector& Location);
 	static UMaterialInterface* StainMaterial;
 	static TArray<TWeakObjectPtr<class UDecalComponent>> Stains;
+	static TMap<TWeakObjectPtr<AActor>, TArray<TWeakObjectPtr<class UDecalComponent>>> OwnedStains;
 };

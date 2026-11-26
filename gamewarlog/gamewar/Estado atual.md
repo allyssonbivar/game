@@ -181,3 +181,12 @@ Todas começam e terminam na guarda. Golpes aceleram até o impacto (ease-in) e 
 - **Efeito:** respingo de volta na entrada + leque de filetes na saída + **jorro contínuo pelas costas** (1,6 s, perdendo força), trava de impacto e tremor de câmera.
 - Multiplayer: a carga é um estado replicado (os outros veem o braço puxado = aviso para aparar); o servidor só aceita o golpe com a carga completa.
 - Modo de teste: `-EAWAutoEspecial` (carrega e solta sozinho, em ciclo). Ex.: `-EAWBot -EAWBotPassivo -EAWAutoEspecial -EAWArma=Sabre -EAWBotDist=280 -EAWCampo -EAWCamBot=330`.
+
+## Morte pelo golpe especial + sangue no chão até renascer (2026-11-26) ✔ testado (câmera do alto e multiplayer)
+- **Animação:** `AS_Morte_Especial` — Mixamo trazida pelo usuário (`Modelos\ex\dycomboFacaEspadaBaioneta.fbx`, fora do Git), transferida no Blender para o nosso esqueleto (mesma pose de referência): cambaleia, cai de joelhos e tomba de costas (3,3 s).
+- Quando o **golpe especial** (faca, espada, baioneta, machado) mata, a vítima toca essa animação em vez do ragdoll. O servidor marca a morte antes do dano e desmarca se a vítima sobreviver; os clientes recebem no mesmo pacote (`DeathAnimKind`: 1 = tiro no pescoço, 2 = golpe especial).
+- **Mais sangue no chão:** a ferida do peito sangra pela frente e pelas costas no ritmo do coração (9 s e 7 s) enquanto ele cai; mais gotas viram mancha (45% dos filetes, 20% das gotas); **poça** que nasce quando o corpo termina de cair e cresce até ~1,7 m (tronco) + ~1 m (quadril) em 16 s. O tiro no pescoço também ganhou poça (~1,4 m).
+- **O sangue fica no chão até o soldado renascer** (manchas sem tempo de vida; as do morto somem quando ele renasce/sai do jogo; as sem dono ficam até passar de 300 no mundo).
+- Mancha no chão agora em modo **DBuffer cor + rugosidade** (`r.DBuffer=True`): antes ficava lilás (o decal regravava a normal do chão).
+- Textura `T_Sangue_Mancha`: o 4º quadro virou uma **poça** (borda lisa, lóbulos escorridos, centro escuro).
+- Teste: `-EAWCamAlto=N` sobe a câmera lateral e olha para o chão. Os modos `-EAWAuto*` agora valem só para o 1º jogador (no teste em rede o cliente "roubava" o modo automático).

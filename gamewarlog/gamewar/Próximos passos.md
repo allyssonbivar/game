@@ -60,3 +60,6 @@ atualizado: 2026-11-25
 - [x] Golpe especial carregado (segurar 3 s + W) para sabre, faca, machado e baioneta (2026-11-26)
 - [ ] Bots usarem o golpe especial (e aparar quando virem o braço puxado)
 - [ ] Animação própria do especial para o machado (hoje usa a estocada do sabre)
+- [x] Morte própria do golpe especial + poça de sangue + sangue no chão até renascer (2026-11-26)
+- [ ] Renascimento de verdade (hoje só o reset de teste): ao renascer, apagar o sangue do morto (já ligado em `EndPlay`/reset)
+- [ ] Ver com o usuário: `DyingWithouthead.fbx` (morte sem cabeça → decapitação?) e `esfacela.mp4`
