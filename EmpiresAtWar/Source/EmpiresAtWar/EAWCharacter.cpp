@@ -53,6 +53,11 @@ AEAWCharacter::AEAWCharacter()
 	GetCharacterMovement()->GroundFriction = 8.f;
 	GetCharacterMovement()->AirControl = 0.15f;
 	GetCharacterMovement()->JumpZVelocity = 380.f;
+	// Agachar: a capsula encolhe 30 cm (a camera desce junto) e o quadril da animacao desce os mesmos 30 cm.
+	GetCharacterMovement()->NavAgentProps.bCanCrouch = true;
+	GetCharacterMovement()->CrouchedHalfHeight = 58.f;
+	GetCharacterMovement()->bCanWalkOffLedgesWhenCrouching = true;
+	GetCharacterMovement()->MaxWalkSpeedCrouched = CrouchSpeed;
 
 	// Mira: segue a rotacao de mira no dono, no servidor e nos outros clientes.
 	AimRoot = CreateDefaultSubobject<USceneComponent>(TEXT("AimRoot"));
@@ -195,6 +200,11 @@ AEAWCharacter::AEAWCharacter()
 	EAW_ANIM(AnimMEspecial, "AS_Mosquete_Especial"); EAW_ANIM(AnimMEspecialFP, "AS_Mosquete_Especial_FP");
 	EAW_ANIM(AnimMBloqueado, "AS_Mosquete_Bloqueado"); EAW_ANIM(AnimMBloqueadoFP, "AS_Mosquete_Bloqueado_FP");
 	EAW_ANIM(AnimMFinta, "AS_Mosquete_Finta"); EAW_ANIM(AnimMFintaFP, "AS_Mosquete_Finta_FP");
+	EAW_ANIM(AnimMGuardaBaioneta, "AS_Mosquete_GuardaBaioneta"); EAW_ANIM(AnimMGuardaBaionetaFP, "AS_Mosquete_GuardaBaioneta_FP");
+	EAW_ANIM(AnimMAparoAlto, "AS_Mosquete_AparoAlto"); EAW_ANIM(AnimMAparoAltoFP, "AS_Mosquete_AparoAlto_FP");
+	EAW_ANIM(AnimAgachadoParado, "AS_Agachado_Parado");
+	EAW_ANIM(AnimAgachadoFrente, "AS_Agachado_Frente"); EAW_ANIM(AnimAgachadoTras, "AS_Agachado_Tras");
+	EAW_ANIM(AnimAgachadoEsq, "AS_Agachado_Esq"); EAW_ANIM(AnimAgachadoDir, "AS_Agachado_Dir");
 #undef EAW_ANIM
 	{
 		static ConstructorHelpers::FObjectFinderOptional<USkeletalMesh> W_Faca(TEXT("/Game/Armas/SK_Arma_Faca.SK_Arma_Faca"));
@@ -269,6 +279,9 @@ if (FParse::Param(FCommandLine::Get(), TEXT("EAWDiagBala")))	{		for (USkeletalMe
 		AnimLayers->SpeedForward = WalkSpeed; AnimLayers->SpeedBack = WalkSpeed * BackSpeedScale;
 		AnimLayers->SpeedSide = WalkSpeed * SideSpeedScale; AnimLayers->SpeedRun = SprintSpeed;
 		AnimLayers->WalkCycle = 19.f / 30.f;   // trote: ciclo de 19 quadros nas 4 direcoes
+		AnimLayers->CrouchIdle = AnimAgachadoParado;
+		AnimLayers->CrouchWalk[0] = AnimAgachadoFrente; AnimLayers->CrouchWalk[1] = AnimAgachadoTras;
+		AnimLayers->CrouchWalk[2] = AnimAgachadoEsq; AnimLayers->CrouchWalk[3] = AnimAgachadoDir;
 	}
 	if (bAnimated)
 	{
@@ -321,6 +334,16 @@ void AEAWCharacter::Tick(float DeltaSeconds)
 	// Mesma rotacao de mira em todas as maquinas: o servidor rastreia a lamina com ela.
 	// Dono: rotacao do controle (a "base aim" do jogador inclui a camera - com o balanco, acumulava e a imagem tombava).
 	AimRoot->SetWorldRotation((IsLocallyControlled() && Controller) ? GetControlRotation() : GetBaseAimRotation());
+	if (bIsCrouched && IsLocallyControlled() && !CanCrouchWithWeapon() && !IsSwitching())
+	{
+		UnCrouch();   // trocou para arma branca ou baioneta (X): levanta
+	}
+	// Teste -EAWAgachado: o soldado do jogador fica agachado (com -EAWAutoAndar anda agachado; com -EAWAutoTiro atira agachado).
+	static const bool bTestCrouch = FParse::Param(FCommandLine::Get(), TEXT("EAWAgachado"));
+	if (bTestCrouch && !bIsCrouched && IsLocallyControlled() && IsPlayerControlled() && CanCrouchWithWeapon() && GetWorld()->GetTimeSeconds() > 0.5f)
+	{
+		Crouch();
+	}
 
 	// Teste -EAWAutoAndar: frente 1,5 s, direita 1 s, tras 1 s, gira 120 graus em 0,8 s, parado 1 s (em ciclo).
 	static const bool bAutoWalk = FParse::Param(FCommandLine::Get(), TEXT("EAWAutoAndar"));
@@ -367,7 +390,8 @@ void AEAWCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAxis("Turn", this, &AEAWCharacter::TurnInput);
 	PlayerInputComponent->BindAxis("LookUp", this, &AEAWCharacter::LookUpInput);
 
-	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
+	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &AEAWCharacter::InputJump);
+	PlayerInputComponent->BindAction("Crouch", IE_Pressed, this, &AEAWCharacter::InputCrouch);
 	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
 	PlayerInputComponent->BindAction("Sprint", IE_Pressed, this, &AEAWCharacter::StartSprint);
 	PlayerInputComponent->BindAction("Sprint", IE_Released, this, &AEAWCharacter::StopSprint);
@@ -408,9 +432,46 @@ void AEAWCharacter::MoveRight(float Value)
 	}
 }
 
+bool AEAWCharacter::CanCrouchWithWeapon() const
+{
+	// Decisao do usuario (2026-11-26): agachar so com armas de fogo; arma branca agachada fica para depois (estudar o Chivalry).
+	return UsingMusketFire() && Wounds->CanFight() && !IsSwitching();
+}
+
+void AEAWCharacter::InputCrouch()
+{
+	if (bIsCrouched) { UnCrouch(); return; }
+	if (CanCrouchWithWeapon() && !bSprinting && !GetCharacterMovement()->IsFalling())
+	{
+		Crouch();
+	}
+}
+
+static const TCHAR* RoleName(const AActor* A)
+{
+	return A->HasAuthority() ? TEXT("servidor") : A->GetLocalRole() == ROLE_AutonomousProxy ? TEXT("dono") : TEXT("outro cliente");
+}
+void AEAWCharacter::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
+{
+	Super::OnStartCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
+	UE_LOG(LogEAWCombat, Log, TEXT("%s agachou (%s)"), *GetName(), RoleName(this));
+}
+void AEAWCharacter::OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
+{
+	Super::OnEndCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
+	UE_LOG(LogEAWCombat, Log, TEXT("%s levantou (%s)"), *GetName(), RoleName(this));
+}
+
+void AEAWCharacter::InputJump()
+{
+	if (bIsCrouched) { UnCrouch(); return; }   // agachado: o espaco so levanta
+	Jump();
+}
+
 void AEAWCharacter::StartSprint()
 {
 	bSprinting = true;
+	if (bIsCrouched) { UnCrouch(); }
 	if (IsFirearmWeapon(CurrentWeapon) && Firearm->IsBusy())
 	{
 		Firearm->RequestCancel();   // correr larga a mira e a recarga
@@ -600,6 +661,7 @@ void AEAWCharacter::ApplyMovementSpeed()
 	}
 	const float Base = (bSprinting && !bBusy) ? SprintSpeed * (CurrentWeapon == EEAWWeapon::Mosquete ? 0.92f : 1.f) : WalkSpeed;
 	GetCharacterMovement()->MaxWalkSpeed = Base * Wounds->GetMoveSpeedMultiplier() * CombatMult * WeightMult;
+	GetCharacterMovement()->MaxWalkSpeedCrouched = CrouchSpeed * Wounds->GetMoveSpeedMultiplier() * FMath::Max(0.5f, CombatMult) * WeightMult;
 }
 
 // ---------------------------------------------------------------------------
@@ -892,9 +954,11 @@ void AEAWCharacter::HandleCombatState(EMeleeState NewState, EAttackDirection Dir
 	auto T = [](int32 Frame) { return (Frame - 1) / 30.f; };
 	const float D = Combat->GetStateDuration();
 
-	UAnimSequence* Attack = bMusket ? AnimMCoronhada : AnimCorteEsq;
-	UAnimSequence* AttackFP = bMusket ? AnimMCoronhadaFP : AnimCorteEsqFP;
+	// Mosquete (video x1): botao esquerdo = estocada da cintura (carga no quadril -> empurra), E = estocada longa, C = coronhada.
+	UAnimSequence* Attack = bMusket ? AnimMEstocada : AnimCorteEsq;
+	UAnimSequence* AttackFP = bMusket ? AnimMEstocadaFP : AnimCorteEsqFP;
 	int32 WindupEnd = 15, ReleaseEnd = 24, Last = 41;
+	if (bMusket) { WindupEnd = 13; ReleaseEnd = 20; Last = 35; }
 	switch (Direction)
 	{
 	case EAttackDirection::SlashRight:
@@ -904,8 +968,9 @@ void AEAWCharacter::HandleCombatState(EMeleeState NewState, EAttackDirection Dir
 		Attack = bMusket ? AnimMEstocadaLonga : AnimDeCima; AttackFP = bMusket ? AnimMEstocadaLongaFP : AnimDeCimaFP;
 		WindupEnd = 17; ReleaseEnd = 27; Last = 45; break;
 	case EAttackDirection::Stab:
-		Attack = bMusket ? AnimMEstocada : AnimEstocada; AttackFP = bMusket ? AnimMEstocadaFP : nullptr;
-		WindupEnd = 13; ReleaseEnd = 20; Last = 35; break;
+		if (bMusket) { Attack = AnimMCoronhada; AttackFP = AnimMCoronhadaFP; WindupEnd = 15; ReleaseEnd = 24; Last = 41; }
+		else { Attack = AnimEstocada; AttackFP = nullptr; WindupEnd = 13; ReleaseEnd = 20; Last = 35; }
+		break;
 	case EAttackDirection::Special:
 		// Golpe especial: preparacao = puxar o braco (a pose fica parada enquanto carrega); golpe = passo longo e estocada.
 		Attack = bMusket ? AnimMEspecial : AnimSabreEspecial; AttackFP = bMusket ? AnimMEspecialFP : AnimSabreEspecialFP;
@@ -916,18 +981,19 @@ void AEAWCharacter::HandleCombatState(EMeleeState NewState, EAttackDirection Dir
 	if (bMusket && NewState == EMeleeState::Windup)
 	{
 		// O que corta: coronhada = coronha (do punho ate a soleira); estocadas = baioneta (da boca a ponta).
-		const bool bButt = Direction == EAttackDirection::SlashLeft || Direction == EAttackDirection::SlashRight;
+		const bool bButt = Direction == EAttackDirection::Stab;
 		Combat->GripSocket = bButt ? TEXT("arma") : TEXT("arma_boca");
 		Combat->TipSocket = bButt ? TEXT("arma_coronha") : TEXT("arma_ponta");
 	}
-	UAnimSequence* Guard = bMusket ? AnimMGuarda : AnimGuarda;
-	UAnimSequence* GuardFP = bMusket ? AnimMGuardaFP : nullptr;
+	UAnimSequence* Guard = bMusket ? (AnimMGuardaBaioneta ? AnimMGuardaBaioneta : AnimMGuarda) : AnimGuarda;
+	UAnimSequence* GuardFP = bMusket ? (AnimMGuardaBaionetaFP ? AnimMGuardaBaionetaFP : AnimMGuardaFP) : nullptr;
 	UAnimSequence* Parry = AnimParry;
 	UAnimSequence* ParryFP = AnimParryFP;
 	if (bMusket)
 	{
-		// Aparo a direita ou a esquerda conforme o golpe do inimigo mais perto.
-		bool bLeft = false;
+		// Defesa como no video x1, conforme o golpe do inimigo mais perto: golpe de cima -> mosquete na horizontal sobre a cabeca;
+		// corte vindo da esquerda/direita -> mosquete em pe daquele lado; estocadas -> desvia para a direita. Sem golpe: defesa alta.
+		EAttackDirection Incoming = EAttackDirection::Overhead;
 		float Best = 400.f;
 		for (TActorIterator<AEAWCharacter> It(GetWorld()); It; ++It)
 		{
@@ -935,11 +1001,21 @@ void AEAWCharacter::HandleCombatState(EMeleeState NewState, EAttackDirection Dir
 			if (*It != this && Dist < Best && It->GetCombat())
 			{
 				Best = Dist;
-				bLeft = It->GetCombat()->GetDirection() == EAttackDirection::SlashLeft;
+				const EMeleeState S = It->GetCombat()->GetState();
+				Incoming = (S == EMeleeState::Windup || S == EMeleeState::Release) ? It->GetCombat()->GetDirection() : EAttackDirection::Overhead;
+				if (It->CurrentWeapon == EEAWWeapon::Mosquete && (Incoming == EAttackDirection::SlashLeft || Incoming == EAttackDirection::SlashRight))
+				{
+					Incoming = EAttackDirection::Stab;   // no mosquete o botao esquerdo e a estocada
+				}
 			}
 		}
-		Parry = bLeft ? AnimMAparoEsq : AnimMAparoDir;
-		ParryFP = bLeft ? AnimMAparoEsqFP : AnimMAparoDirFP;
+		switch (Incoming)
+		{
+		case EAttackDirection::SlashLeft:  Parry = AnimMAparoEsq; ParryFP = AnimMAparoEsqFP; break;
+		case EAttackDirection::SlashRight: case EAttackDirection::Stab: case EAttackDirection::Special:
+			Parry = AnimMAparoDir; ParryFP = AnimMAparoDirFP; break;
+		default: Parry = AnimMAparoAlto ? AnimMAparoAlto : AnimMAparoDir; ParryFP = AnimMAparoAltoFP ? AnimMAparoAltoFP : AnimMAparoDirFP; break;
+		}
 	}
 	UAnimSequence* Feint = bMusket ? AnimMFinta : AnimFinta;
 	UAnimSequence* FeintFP = bMusket ? AnimMFintaFP : AnimFintaFP;
@@ -1970,10 +2046,10 @@ void AEAWCharacter::ApplyWeaponCombatConfig()
 	case EEAWWeapon::Mosquete:
 		// Mosquete com baioneta (tecla X): coronhada atordoa, estocadas tem alcance de ~1,9 e ~2,1 m.
 		C.WeaponName = TEXT("Mosquete");
-		Scale(EAttackDirection::SlashLeft, 1.25f, 38.f, 14.f);    // coronhada
-		Scale(EAttackDirection::SlashRight, 1.25f, 38.f, 14.f);
-		Scale(EAttackDirection::Overhead, 1.25f, 62.f, 18.f);     // estocada longa
-		Scale(EAttackDirection::Stab, 1.15f, 55.f, 12.f);         // estocada
+		Scale(EAttackDirection::SlashLeft, 1.05f, 55.f, 12.f);    // estocada da cintura (botao esquerdo, como no video x1)
+		Scale(EAttackDirection::SlashRight, 1.05f, 55.f, 12.f);
+		Scale(EAttackDirection::Overhead, 1.25f, 62.f, 18.f);     // estocada longa (E)
+		Scale(EAttackDirection::Stab, 1.25f, 38.f, 14.f);         // coronhada (C)
 		Scale(EAttackDirection::Special, 1.1f, 160.f, 28.f);      // estocada especial (Fig. 9: investida com a baioneta)
 		C.StunWhenParried = 0.65f;
 		C.ParryWindow = 0.32f;

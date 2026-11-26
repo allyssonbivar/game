@@ -11,8 +11,8 @@ class UStaticMeshComponent;
 /**
  * Fumaca de polvora negra com sprites (textura T_Fumaca: flocos com sombra propria) que olham para a camera,
  * clarao do disparo com luz, e poeira no impacto. C++ puro (sem Niagara), so visual.
- * Referencia de comportamento: video do Holdfast (nuvem densa ~1,5 m a frente do cano, rastro na linha do tiro,
- * fica no ar 5-8 s e deriva com o vento).
+ * Referencia de comportamento: videos do Holdfast (x1, 2026-11-26): nuvem branca densa que abre ~3 m a frente do cano,
+ * cresce ate ~4-5 m, fica densa ~4 s, some devagar em ~12 s e deriva com o vento (envolve quem atirou).
  */
 UCLASS()
 class EMPIRESATWAR_API AEAWSmokeFX : public AActor
@@ -54,6 +54,6 @@ private:
 	TArray<int32> Order;
 	float FlashLeft = 0.f;
 
-	void Add(const FVector& P, const FVector& V, float Life, float R0, float R1, float Alpha, float Drag, float Bright = 1.f);
+	void Add(const FVector& P, const FVector& V, float Life, float R0, float R1, float Alpha, float Drag, float Bright = 1.f, float Delay = 0.f);
 	static AEAWSmokeFX* SpawnAt(UWorld* World, const FVector& Location);
 };

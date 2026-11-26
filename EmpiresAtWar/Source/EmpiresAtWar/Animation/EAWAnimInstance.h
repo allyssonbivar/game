@@ -29,6 +29,11 @@ struct FEAWAnimFrame
 	float RunWeight = 0.f;       // andar -> correr
 	float UpperRunWeight = 0.f;  // correndo sem lutar: tronco tambem corre (sabre no ombro)
 	float AimYaw = 0.f;          // mira - corpo (graus): o tronco e a arma torcem na cintura
+	// Agachado: pernas e altura do quadril vem destas animacoes; o tronco continua no combate/arma.
+	UAnimSequence* CrouchIdle = nullptr;
+	UAnimSequence* CrouchWalk[4] = { nullptr, nullptr, nullptr, nullptr };
+	float CrouchIdleTime = 0.f, CrouchTime = 0.f;
+	float CrouchWeight = 0.f;     // 0 em pe, 1 agachado (transicao de 0,25 s)
 };
 
 struct FEAWAnimProxy : public FAnimInstanceProxy
@@ -66,6 +71,11 @@ public:
 	float SpeedForward = 140.f, SpeedBack = 100.f, SpeedSide = 85.f, SpeedRun = 400.f;
 	float WalkCycle = 0.8f, RunCycle = 0.6f;
 
+	/** Agachado (so armas de fogo): parado + andar nas 4 direcoes; velocidades (cm/s) em que foram feitas. */
+	UPROPERTY(EditAnywhere, Category = "Movimento") UAnimSequence* CrouchIdle = nullptr;
+	UAnimSequence* CrouchWalk[4] = { nullptr, nullptr, nullptr, nullptr };   // frente, tras, esq, dir
+	float CrouchSpeedForward = 100.f, CrouchSpeedBack = 80.f, CrouchSpeedSide = 70.f, CrouchCycle = 0.9f;
+
 	/** Correndo sem lutar, o tronco usa a corrida (sabre no ombro). Com o mosquete, nao (a arma ficaria no chao). */
 	bool bAllowUpperRun = true;
 
@@ -89,6 +99,7 @@ private:
 	float LocoWeight = 0.f, RunWeight = 0.f, UpperRunWeight = 0.f;
 	float DirW[4] = { 1.f, 0.f, 0.f, 0.f };
 	float AimYaw = 0.f;
+	float CrouchWeight = 0.f, CrouchPhase = 0.f, CrouchIdleTime = 0.f;
 	float PrevActorYaw = 0.f;
 	bool bHavePrevYaw = false;
 

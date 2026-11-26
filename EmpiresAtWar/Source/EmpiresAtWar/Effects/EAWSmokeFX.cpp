@@ -54,9 +54,10 @@ AEAWSmokeFX* AEAWSmokeFX::SpawnAt(UWorld* World, const FVector& Location)
 	return World->SpawnActor<AEAWSmokeFX>(AEAWSmokeFX::StaticClass(), FTransform(Location), P);
 }
 
-void AEAWSmokeFX::Add(const FVector& P, const FVector& V, float Life, float R0, float R1, float Alpha, float Drag, float Bright)
+void AEAWSmokeFX::Add(const FVector& P, const FVector& V, float Life, float R0, float R1, float Alpha, float Drag, float Bright, float Delay)
 {
-	Items.Add({ P, V, 0.f, Life, R0, R1, Alpha, Drag, FMath::FRandRange(0.f, 360.f), FMath::FRandRange(-12.f, 12.f),
+	// Delay > 0: o floco so aparece depois (idade negativa = ainda nao nasceu).
+	Items.Add({ P, V, -Delay, Life, R0, R1, Alpha, Drag, FMath::FRandRange(0.f, 360.f), FMath::FRandRange(-12.f, 12.f),
 		Bright * FMath::FRandRange(0.9f, 1.05f), FMath::FRand() * 10.f, (uint8)FMath::RandRange(0, 3) });
 }
 
@@ -69,21 +70,30 @@ void AEAWSmokeFX::MuzzleBlast(UWorld* World, const FVector& Muzzle, const FVecto
 	}
 	const FVector D = Dir.GetSafeNormal();
 	// 1) Jato: a polvora sai a ~30 m/s e freia no ar em 0,5-3 m, formando a nuvem densa a frente do cano.
-	for (int32 i = 0; i < 22; ++i)
+	for (int32 i = 0; i < 30; ++i)
 	{
 		const float k = FMath::FRand();
-		const FVector V = FMath::VRandCone(D, FMath::DegreesToRadians(5.f + 14.f * k)) * FMath::Lerp(1900.f, 350.f, k);
-		FX->Add(Muzzle + D * FMath::FRandRange(0.f, 20.f), V, FMath::FRandRange(5.f, 7.5f), FMath::FRandRange(6.f, 12.f),
-			FMath::FRandRange(40.f, 85.f), FMath::FRandRange(0.6f, 0.85f), 6.f);
+		const FVector V = FMath::VRandCone(D, FMath::DegreesToRadians(5.f + 16.f * k)) * FMath::Lerp(2100.f, 380.f, k);
+		FX->Add(Muzzle + D * FMath::FRandRange(0.f, 20.f), V, FMath::FRandRange(9.f, 13.f), FMath::FRandRange(8.f, 14.f),
+			FMath::FRandRange(60.f, 115.f), FMath::FRandRange(0.65f, 0.9f), 6.f, FMath::FRandRange(1.0f, 1.12f));
 	}
 	// 2) Rolos que saem de lado na boca do cano (a nuvem "abre" em volta da boca).
-	for (int32 i = 0; i < 7; ++i)
+	for (int32 i = 0; i < 10; ++i)
 	{
 		const FVector Side = FVector::CrossProduct(D, FMath::VRand()).GetSafeNormal();
-		FX->Add(Muzzle + D * 10.f, Side * FMath::FRandRange(100.f, 300.f) + D * FMath::FRandRange(100.f, 350.f), FMath::FRandRange(3.5f, 6.f),
-			5.f, FMath::FRandRange(30.f, 60.f), FMath::FRandRange(0.5f, 0.7f), 4.f);
+		FX->Add(Muzzle + D * 10.f, Side * FMath::FRandRange(100.f, 320.f) + D * FMath::FRandRange(100.f, 380.f), FMath::FRandRange(6.f, 9.f),
+			6.f, FMath::FRandRange(45.f, 90.f), FMath::FRandRange(0.55f, 0.75f), 4.f, FMath::FRandRange(0.95f, 1.08f));
 	}
-	// 3) Sopro da cacoleta (escorva), do lado direito do fecho, subindo.
+	// 3) Corpo da nuvem: flocos grandes e lentos que nascem quando o jato chega (0,6-3 m a frente) e incham devagar
+	//    ate 1,3-1,8 m de raio - e o que deixa a nuvem "parada no ar" por muitos segundos, como no video.
+	for (int32 i = 0; i < 9; ++i)
+	{
+		const float Dist = FMath::FRandRange(60.f, 300.f);
+		const FVector P = Muzzle + D * Dist + FMath::VRand() * FMath::FRandRange(0.f, 35.f);
+		FX->Add(P, D * FMath::FRandRange(40.f, 120.f) + FMath::VRand() * 30.f, FMath::FRandRange(11.f, 15.f), 25.f,
+			FMath::FRandRange(130.f, 180.f), FMath::FRandRange(0.5f, 0.68f), 2.5f, FMath::FRandRange(1.0f, 1.1f), Dist / 2400.f + 0.05f);
+	}
+	// 4) Sopro da cacoleta (escorva), do lado direito do fecho, subindo.
 	for (int32 i = 0; i < 6; ++i)
 	{
 		FX->Add(Pan, FMath::VRand() * 50.f + FVector(0.f, 0.f, 70.f), FMath::FRandRange(2.f, 3.5f), 3.f, FMath::FRandRange(16.f, 32.f), 0.4f, 2.5f);
@@ -127,6 +137,10 @@ void AEAWSmokeFX::Tick(float Dt)
 	{
 		FPuff& F = Items[i];
 		F.Age += Dt;
+		if (F.Age < 0.f)
+		{
+			continue;   // ainda nao nasceu
+		}
 		if (F.Age >= F.Life)
 		{
 			Items.RemoveAtSwap(i);
@@ -134,7 +148,7 @@ void AEAWSmokeFX::Tick(float Dt)
 		}
 		// Freia no ar ate andar com o vento; sobe devagar (gas quente) e ondula (turbulencia).
 		const FVector Turb(FMath::Sin(F.Age * 0.9f + F.Seed) * 10.f, FMath::Cos(F.Age * 0.7f + F.Seed * 1.3f) * 10.f, 0.f);
-		const FVector Target = Wind + Turb + FVector(0.f, 0.f, 10.f);
+		const FVector Target = Wind + Turb + FVector(0.f, 0.f, 14.f);
 		F.V = Target + (F.V - Target) * FMath::Max(0.f, 1.f - F.Drag * Dt);
 		F.P += F.V * Dt;
 		F.Roll += F.Spin * Dt;
@@ -142,8 +156,8 @@ void AEAWSmokeFX::Tick(float Dt)
 
 	// De tras para a frente (translucido por instancia nao e ordenado pela placa de video).
 	const FVector Cam = EAWSprites::ViewLocation(GetWorld());
-	Order.SetNum(Items.Num());
-	for (int32 i = 0; i < Order.Num(); ++i) { Order[i] = i; }
+	Order.Reset();
+	for (int32 i = 0; i < Items.Num(); ++i) { if (Items[i].Age >= 0.f) Order.Add(i); }
 	Order.Sort([this, &Cam](int32 A, int32 B) { return FVector::DistSquared(Items[A].P, Cam) > FVector::DistSquared(Items[B].P, Cam); });
 
 	Puffs->ClearInstances();
@@ -151,10 +165,12 @@ void AEAWSmokeFX::Tick(float Dt)
 	{
 		const FPuff& F = Items[i];
 		const float t = F.Age / F.Life;
-		// Cresce rapido no comeco (expansao do gas) e depois devagar (difusao).
-		const float Grow = 1.f - FMath::Exp(-F.Age * 3.5f);
-		const float R = FMath::Lerp(F.R0, F.R1, Grow) * (1.f + 0.25f * t);
-		const float A = F.Alpha * FMath::Min(1.f, F.Age * 25.f) * FMath::Square(1.f - t);
+		// Cresce rapido no comeco (expansao do gas) e depois devagar e sempre (difusao: a nuvem vai inchando no ar).
+		const float Grow = 1.f - FMath::Exp(-F.Age * 3.0f);
+		const float R = FMath::Lerp(F.R0, F.R1, Grow) * (1.f + 0.6f * t);
+		// Densa no primeiro terco da vida, depois some devagar (no video fica ~4 s cheia e leva ~8 s para sumir).
+		const float Fade = t < 0.3f ? 1.f : FMath::Pow(1.f - (t - 0.3f) / 0.7f, 1.6f);
+		const float A = F.Alpha * FMath::Min(1.f, F.Age * 25.f) * Fade;
 		// A nuvem ocupa ~metade do quadro da textura: o quadro tem 4x o raio.
 		const int32 Idx = Puffs->AddInstanceWorldSpace(EAWSprites::Billboard(F.P, Cam, R * 4.f, R * 4.f, F.Roll));
 		Puffs->SetCustomDataValue(Idx, 0, A, false);

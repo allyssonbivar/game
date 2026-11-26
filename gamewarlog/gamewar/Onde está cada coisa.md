@@ -1,6 +1,6 @@
 ---
 tags: [caminhos]
-atualizado: 2026-11-24
+atualizado: 2026-11-26
 ---
 # Onde está cada coisa
 
@@ -30,3 +30,6 @@ atualizado: 2026-11-24
 | REA (engenharia reversa) | `Documents\testar\rea\` + Node portátil em `Documents\testar\.tools\` |
 | Ghidra 12.2 | `Documents\ghidra_12.2_PUBLIC\` |
 | Unreal Engine 4.27 | `C:\Program Files\Epic Games\UE_4.27\` |
+| Baioneta do vídeo x1 e agachado (poses e montagem) | `Soldado.blend` → texto `eaw_baioneta` (`build_bay()`, `build_crouch()`; precisa de `eaw_rifle_anims` antes) |
+| Agachado no animador | `Source\EmpiresAtWar\Animation\EAWAnimInstance.cpp` (camada agachada + arma presa ao quadril) |
+| Referência baioneta/agachar/fumaça (só estudo, fora do Git) | `Modelos\ex\x1.mp4` |

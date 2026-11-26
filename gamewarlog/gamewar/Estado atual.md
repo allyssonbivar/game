@@ -1,6 +1,6 @@
 ---
 tags: [estado]
-atualizado: 2026-11-24
+atualizado: 2026-11-26
 ---
 # Estado atual
 
@@ -190,3 +190,17 @@ Todas começam e terminam na guarda. Golpes aceleram até o impacto (ease-in) e 
 - Mancha no chão agora em modo **DBuffer cor + rugosidade** (`r.DBuffer=True`): antes ficava lilás (o decal regravava a normal do chão).
 - Textura `T_Sangue_Mancha`: o 4º quadro virou uma **poça** (borda lisa, lóbulos escorridos, centro escuro).
 - Teste: `-EAWCamAlto=N` sobe a câmera lateral e olha para o chão. Os modos `-EAWAuto*` agora valem só para o 1º jogador (no teste em rede o cliente "roubava" o modo automático).
+
+## Baioneta como no vídeo x1, agachar e fumaça nova (2026-11-26) ✔ testado (duelo de bots, câmera lateral, 1ª pessoa, rede)
+Referência: `Modelos\ex\x1.mp4` (vídeo do Holdfast em 3ª pessoa, fora do Git) — só estudo; animações feitas do zero no Blender.
+- **Guarda da baioneta nova** (`AS_Mosquete_GuardaBaioneta` + `_FP`): mosquete **na diagonal do peito** (coronha no quadril direito, baioneta subindo para o ombro esquerdo), como no vídeo. Todos os golpes do mosquete começam e terminam nela; **o golpe especial não mudou**.
+- **Ataques:** **botão esquerdo = estocada da cintura** (`AS_Mosquete_Estocada` refeita: baixa o mosquete na horizontal ao quadril e empurra com os dois braços; dano 55), **E = estocada longa** (62), **C = coronhada** (38, atordoa). Antes o botão esquerdo era a coronhada.
+- **Defesas (botão direito), como no vídeo:** **alta** = mosquete na horizontal sobre a cabeça, pés afastados (`AS_Mosquete_AparoAlto`); **esquerda** = mosquete em pé do lado esquerdo, braço esquerdo alto (`AparoEsq`); **direita** = mosquete em pé do lado direito (`AparoDir`). Escolha automática pelo golpe do inimigo mais perto: golpe de cima → alta; corte da esquerda → esquerda; corte da direita/estocadas/especial → direita (desvia a lâmina); sem golpe vindo → alta.
+- **Agachar (C ou Ctrl), só com arma de fogo** (mosquete no modo tiro ou pistola) — decisão do usuário; arma branca agachada fica para depois (estudar o Chivalry). Correr, pular (espaço) ou trocar para arma branca/baioneta levanta.
+  - Cápsula 30 cm mais baixa (`CrouchedHalfHeight` 58) → câmera desce 30 cm; quadril da animação desce os mesmos 30 cm.
+  - Animações `AS_Agachado_Parado` e `AS_Agachado_Frente/Tras/Esq/Dir` (pernas; 1,0 / 0,8 / 0,7 m/s, ciclo 0,9 s). Velocidade agachado 1,1 m/s (mirando/recarregando cai junto).
+  - O tronco continua tocando a arma: **mira, tiro e recarga agachados** usam as mesmas animações de pé (o animador troca só pernas e altura do quadril; a rotação do quadril continua a da arma, então a mira não muda).
+  - O mosquete e a pistola (ossos filhos da raiz) agora **acompanham o quadril final** quando ele difere do da animação da arma (agachado ou andando) — as mãos não saem mais da arma.
+  - Rede: agachar replica pelo movimento do personagem da Unreal (testado: cliente agachou, servidor recebeu).
+- **Fumaça (vídeo x1):** 30 jatos + 10 rolos + **9 flocos grandes de "corpo" da nuvem** (nascem 0,6–3 m à frente e incham até 1,3–1,8 m de raio); cresce sempre (difusão), fica **densa ~1/3 da vida e some devagar**: dura **9–15 s** (antes 5–7 s); sobe 14 cm/s com o vento. Textura `T_Fumaca` mais lisa (menos chuvisco) e borda suave no chão de 2,2 m no `M_Fumaca_Sprite` (bug #62).
+- Testes novos: `-EAWAgachado` (seu soldado fica agachado; com `-EAWAutoAndar` anda agachado, com `-EAWAutoTiro` atira e recarrega agachado), `-EAWCamJogador` (com `-EAWCamBot=N`: a câmera lateral olha para o seu soldado).

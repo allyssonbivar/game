@@ -46,11 +46,11 @@ def puff(seed):
     iy = np.clip(((v + wy + 1) / 2 * N).astype(int), 0, N - 1)
     warped = blobs[iy, ix]
     detail = fbm(N, seed + 3, 6, 5)
-    dens = np.clip(warped * (0.6 + 0.8 * detail) - 0.12, 0, 1) * 1.4
+    dens = np.clip(warped * (0.75 + 0.5 * detail) - 0.12, 0, 1) * 1.4   # menos ruido fino (chuvisco nas nuvens grandes)
     rad = np.sqrt(u ** 2 + v ** 2)
     dens = np.clip(dens, 0, 1) * np.clip(1 - rad / 0.88, 0, 1) ** 1.2
     # Sem chuvisco de alfa baixo fora da nuvem (40 flocos sobrepostos somavam um "quadrado" pontilhado no jogo).
-    dens = np.asarray(Image.fromarray((np.clip(dens, 0, 1) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(2)), np.float32) / 255
+    dens = np.asarray(Image.fromarray((np.clip(dens, 0, 1) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(5)), np.float32) / 255
     dens = np.clip((dens - 0.10) / 0.9, 0, 1)
     # Sombra propria: densidade acumulada na direcao da luz (cima-esquerda) escurece o miolo e a base.
     blur = np.asarray(Image.fromarray((dens * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(18)), np.float32) / 255
@@ -58,7 +58,7 @@ def puff(seed):
     for k in range(1, 9):
         shadow += np.roll(np.roll(blur, k * 6, axis=0), k * 3, axis=1)
     shadow /= 8
-    shade = np.clip(1.0 - 0.45 * shadow + 0.14 * (detail - 0.5), 0.45, 1.0)
+    shade = np.clip(1.0 - 0.45 * shadow + 0.08 * (detail - 0.5), 0.45, 1.0)
     return np.dstack([shade, shade, shade, np.clip(dens, 0, 1)])
 
 

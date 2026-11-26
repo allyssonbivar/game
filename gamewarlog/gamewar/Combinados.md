@@ -1,6 +1,6 @@
 ---
 tags: [regras]
-atualizado: 2026-11-24
+atualizado: 2026-11-26
 ---
 # Combinados
 
@@ -19,3 +19,7 @@ atualizado: 2026-11-24
 - **Segurar o botão esquerdo por 3 s + W** = golpe especial. Na carga o soldado **puxa o braço para trás**; ao soltar **vai com força** (passo longo + estocada que atravessa o corpo).
 - Sabre, faca e machado: movimento como no vídeo de referência `Modelos\ex\move1.mp4` (braço esquerdo aponta o alvo, lâmina atrás do quadril). Baioneta: investida como a **Fig. 9** do manual de baioneta (mosquete puxado para trás → estocada longa com as duas mãos).
 - Efeito como no vídeo: a lâmina atravessa e o sangue jorra **pelas costas** da vítima por ~1,6 s.
+
+## Baioneta e agachar (decisão do usuário, 2026-11-26)
+- Combate da baioneta **como no vídeo `Modelos\ex\x1.mp4` em 3ª pessoa**: guarda com o mosquete na diagonal do peito, estocada da cintura, defesas alta (horizontal sobre a cabeça) e laterais (mosquete em pé). **O golpe especial não muda.**
+- **Agachar e andar agachado só com pistolas e mosquetes/rifles** (modo tiro). Arma branca agachada: o usuário ainda vai estudar como o Chivalry faz.

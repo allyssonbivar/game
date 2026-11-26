@@ -109,7 +109,9 @@ void AEAWGameMode::HandleStartingNewPlayer_Implementation(APlayerController* New
 				float CamUp = 0.f;
 				FParse::Value(Cmd, TEXT("EAWCamAlto="), CamUp);
 				const FVector CamLoc = (Neck + Shooter) * 0.5f + Side * CamDist + FVector(0.f, 0.f, -10.f + CamUp);
-				const FVector LookAt = CamUp > 0.f ? Bot->GetActorLocation() - FVector(0.f, 0.f, 80.f) : Neck * 0.7f + Shooter * 0.3f;
+				// -EAWCamJogador : olha para o seu soldado (ver agachar, andar agachado, recarga e fumaca em 3a pessoa).
+				const FVector LookAt = FParse::Param(Cmd, TEXT("EAWCamJogador")) ? Shooter - FVector(0.f, 0.f, 25.f)
+					: CamUp > 0.f ? Bot->GetActorLocation() - FVector(0.f, 0.f, 80.f) : Neck * 0.7f + Shooter * 0.3f;
 				if (ACameraActor* Cam = GetWorld()->SpawnActor<ACameraActor>(CamLoc, (LookAt - CamLoc).Rotation()))
 				{
 					Cam->GetCameraComponent()->SetFieldOfView(70.f);

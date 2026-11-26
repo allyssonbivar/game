@@ -80,6 +80,7 @@ void UEAWAnimInstance::TickValues(float Dt, FEAWAnimFrame& Out)
 	const APawn* Pawn = TryGetPawnOwner();
 	FVector Local = FVector::ZeroVector;
 	bool bCombatIdle = true;
+	bool bCrouched = false;
 	if (Pawn)
 	{
 		const FVector V = Pawn->GetVelocity();
@@ -87,6 +88,7 @@ void UEAWAnimInstance::TickValues(float Dt, FEAWAnimFrame& Out)
 		if (const AEAWCharacter* Soldier = Cast<AEAWCharacter>(Pawn))
 		{
 			bCombatIdle = Soldier->GetCombat() && Soldier->GetCombat()->GetState() == EMeleeState::Idle;
+			bCrouched = Soldier->bIsCrouched;
 		}
 	}
 	float Speed = Local.Size2D();
@@ -131,9 +133,18 @@ void UEAWAnimInstance::TickValues(float Dt, FEAWAnimFrame& Out)
 	RunPhase = FMath::Fmod(RunPhase + Dt * (Speed / SpeedRun) / RunCycle, 1.f);
 
 	LocoWeight = FMath::FInterpTo(LocoWeight, FMath::Clamp(Speed / 40.f, 0.f, 1.f), Dt, 10.f);
+	// Agachado: desce/sobe em 0,25 s; o passo agachado sincroniza com a velocidade como o andar.
+	CrouchWeight = FMath::FInterpConstantTo(CrouchWeight, (bCrouched && CrouchIdle) ? 1.f : 0.f, Dt, 4.f);
+	const float CrouchNatural = FMath::Max(1.f, DirW[0] * CrouchSpeedForward + DirW[1] * CrouchSpeedBack + (DirW[2] + DirW[3]) * CrouchSpeedSide);
+	CrouchPhase = FMath::Fmod(CrouchPhase + Dt * (Speed / CrouchNatural) / CrouchCycle, 1.f);
+	CrouchIdleTime += Dt;
+	if (CrouchIdle && CrouchIdle->SequenceLength > 0.f)
+	{
+		CrouchIdleTime = FMath::Fmod(CrouchIdleTime, CrouchIdle->SequenceLength);
+	}
 	// Correr so para a frente (de lado e para tras usa o trote daquela direcao).
 	RunWeight = FMath::FInterpTo(RunWeight, FMath::Clamp((Local.X - 330.f) / 120.f, 0.f, 1.f), Dt, 8.f);
-	UpperRunWeight = FMath::FInterpTo(UpperRunWeight, (bCombatIdle && bAllowUpperRun) ? RunWeight : 0.f, Dt, 12.f);
+	UpperRunWeight = FMath::FInterpTo(UpperRunWeight, (bCombatIdle && bAllowUpperRun && !bCrouched) ? RunWeight : 0.f, Dt, 12.f);
 
 	Out.Combat = Seg.Anim;
 	Out.CombatTime = SegmentTime(Seg, SegElapsed);
@@ -151,6 +162,14 @@ void UEAWAnimInstance::TickValues(float Dt, FEAWAnimFrame& Out)
 	Out.RunWeight = RunWeight;
 	Out.UpperRunWeight = UpperRunWeight;
 	Out.AimYaw = AimYaw;
+	Out.CrouchIdle = CrouchIdle;
+	for (int32 i = 0; i < 4; ++i)
+	{
+		Out.CrouchWalk[i] = CrouchWalk[i];
+	}
+	Out.CrouchIdleTime = CrouchIdleTime;
+	Out.CrouchTime = CrouchPhase * CrouchCycle;
+	Out.CrouchWeight = CrouchWeight;
 }
 
 // ---------------------------------------------------------------------------
@@ -255,7 +274,80 @@ bool FEAWAnimProxy::Evaluate(FPoseContext& Output)
 		}
 		Out[I] = T;
 	}
+	const FReferenceSkeleton& RefSk = Bones.GetReferenceSkeleton();
+	const FCompactPoseBoneIndex Pelvis = Bones.MakeCompactPoseIndex(FMeshPoseBoneIndex(RefSk.FindBoneIndex(TEXT("pelvis"))));
+
+	// Agachado: pernas e altura do quadril da animacao agachada; a rotacao do quadril continua a da arma (a mira nao muda).
+	if (Data.CrouchWeight > 0.01f && Data.CrouchIdle)
+	{
+		FPoseContext CrouchPose(this);
+		SamplePose(Data.CrouchIdle, Data.CrouchIdleTime, CrouchPose);
+		if (Data.LocoWeight > 0.01f)
+		{
+			FPoseContext Walk(this);
+			float Acc = 0.f;
+			for (int32 i = 0; i < 4; ++i)
+			{
+				const float W = Data.LocoW[i];
+				if (W < 0.01f || !Data.CrouchWalk[i]) continue;
+				if (Acc <= 0.f)
+				{
+					SamplePose(Data.CrouchWalk[i], Data.CrouchTime, Walk);
+					Acc = W;
+					continue;
+				}
+				FPoseContext P(this);
+				SamplePose(Data.CrouchWalk[i], Data.CrouchTime, P);
+				Acc += W;
+				LerpPose(Walk.Pose, P.Pose, W / Acc);
+			}
+			if (Acc > 0.f)
+			{
+				LerpPose(CrouchPose.Pose, Walk.Pose, Data.LocoWeight);
+			}
+		}
+		for (FCompactPoseBoneIndex I : Out.ForEachBoneIndex())
+		{
+			if (UpperMask[I.GetInt()])
+			{
+				continue;
+			}
+			FTransform C = CrouchPose.Pose[I];
+			if (I == Pelvis)
+			{
+				C.SetRotation(Out[I].GetRotation());
+			}
+			FTransform R;
+			R.Blend(Out[I], C, FMath::Min(Data.CrouchWeight, 1.f));
+			Out[I] = R;
+		}
+	}
 	Out.NormalizeRotations();
+
+	// Ossos das armas longas (mosquete e pistola) sao filhos da raiz, nao do corpo: quando o quadril final difere do da
+	// animacao da arma (andando ou agachado), a arma acompanha o quadril - senao as maos (que seguem o corpo) saem dela.
+	if (Pelvis.GetInt() != INDEX_NONE)
+	{
+		FCSPose<FCompactPose> CombatCS;
+		CombatCS.InitPose(CombatPose.Pose);
+		FCSPose<FCompactPose> FinalCS;
+		FinalCS.InitPose(Out);
+		const FTransform PC = CombatCS.GetComponentSpaceTransform(Pelvis);
+		const FTransform PF = FinalCS.GetComponentSpaceTransform(Pelvis);
+		if (!PC.Equals(PF, 0.05f))
+		{
+			const FTransform Delta = PC.Inverse() * PF;
+			for (const TCHAR* Name : { TEXT("arma"), TEXT("pistola") })
+			{
+				const int32 MeshIdx = RefSk.FindBoneIndex(Name);
+				if (MeshIdx == INDEX_NONE) continue;
+				const FCompactPoseBoneIndex B = Bones.MakeCompactPoseIndex(FMeshPoseBoneIndex(MeshIdx));
+				if (B.GetInt() == INDEX_NONE) continue;
+				const FTransform NewCS = CombatCS.GetComponentSpaceTransform(B) * Delta;
+				Out[B] = NewCS.GetRelativeTransform(FinalCS.GetComponentSpaceTransform(Out.GetParentBoneIndex(B)));
+			}
+		}
+	}
 
 	// Torcao na cintura: tronco, bracos e a arma longa giram em volta do spine_01 (as pernas ficam).
 	if (FMath::Abs(Data.AimYaw) > 0.5f)

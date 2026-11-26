@@ -1,6 +1,6 @@
 ---
 tags: [indice]
-atualizado: 2026-11-24
+atualizado: 2026-11-26
 ---
 # Empires at War — Início
 

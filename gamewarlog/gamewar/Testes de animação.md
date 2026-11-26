@@ -150,3 +150,7 @@ Capturas a cada 0,2–0,3 s com `-EAWDuelo`; cortes forçados com `-EAWTesteCort
 | Combate do mosquete em 1ª pessoa | ✔ estocadas à frente; coronhada ajustada só para a 1ª pessoa (preparação 25 cm à frente, golpe 18 cm abaixo) |
 | Não visto ainda | Recarga completa de 15 s em jogo (só etapas iniciais), ferida de bala de perto |
 | Golpe especial (sabre, faca, baioneta) | ✔ carga com braço para trás, investida até o alvo, jorro pelas costas, vítima cai; 1ª pessoa sem tapar a tela |
+| Baioneta do vídeo x1 (duelo de bots) | ✔ guarda diagonal; estocada da cintura com sangue; defesa com o mosquete em pé desviando a estocada; mãos na arma. Defesa alta não apareceu no duelo (os bots só estocam) |
+| Agachado (câmera lateral) | ✔ anda agachado com o mosquete pronto; mira, tiro e recarga agachado com as mãos na arma |
+| Fumaça nova (1ª pessoa) | ✔ nuvem enche a tela no tiro, fica ~9 s e some devagar; sem as linhas no chão (bug #62) |
+| Agachar em rede (2 janelas) | ✔ cliente agachou → servidor recebeu |

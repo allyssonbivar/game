@@ -57,6 +57,8 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movimento")
 	float SprintSpeed = 500.f;
+	/** Andando agachado (cm/s) - a animacao foi feita para 100 cm/s para a frente. */
+	UPROPERTY(EditAnywhere, Category = "Movimento") float CrouchSpeed = 110.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movimento")
 	float BackSpeedScale = 0.65f;
@@ -122,6 +124,12 @@ protected:
 	void MoveForward(float Value);
 	void MoveRight(float Value);
 	void StartSprint();
+	/** C ou Ctrl: agacha/levanta. So com mosquete (modo tiro) ou pistola; correr, pular ou trocar para arma branca levanta. */
+	void InputCrouch();
+	virtual void OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
+	virtual void OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
+	void InputJump();
+	bool CanCrouchWithWeapon() const;
 	void StopSprint();
 	void InputSlash();
 	void InputSlashReleased();
@@ -332,6 +340,13 @@ protected:
 	UPROPERTY() class UAnimSequence* AnimMAparoEsq = nullptr;       UPROPERTY() class UAnimSequence* AnimMAparoEsqFP = nullptr;
 	UPROPERTY() class UAnimSequence* AnimMBloqueado = nullptr;      UPROPERTY() class UAnimSequence* AnimMBloqueadoFP = nullptr;
 	UPROPERTY() class UAnimSequence* AnimMFinta = nullptr;          UPROPERTY() class UAnimSequence* AnimMFintaFP = nullptr;
+	// Baioneta como no video de referencia x1 (2026-11-26): guarda com o mosquete na diagonal do peito e defesa alta (horizontal sobre a cabeca).
+	UPROPERTY() class UAnimSequence* AnimMGuardaBaioneta = nullptr; UPROPERTY() class UAnimSequence* AnimMGuardaBaionetaFP = nullptr;
+	UPROPERTY() class UAnimSequence* AnimMAparoAlto = nullptr;      UPROPERTY() class UAnimSequence* AnimMAparoAltoFP = nullptr;
+	// Agachado (so com arma de fogo): pernas e altura do quadril; o tronco continua tocando a arma (mirar, atirar, recarregar).
+	UPROPERTY() class UAnimSequence* AnimAgachadoParado = nullptr;
+	UPROPERTY() class UAnimSequence* AnimAgachadoFrente = nullptr;  UPROPERTY() class UAnimSequence* AnimAgachadoTras = nullptr;
+	UPROPERTY() class UAnimSequence* AnimAgachadoEsq = nullptr;     UPROPERTY() class UAnimSequence* AnimAgachadoDir = nullptr;
 
 	UFUNCTION() void HandleFirearmState(EFirearmState NewState, uint8 Stage);
 

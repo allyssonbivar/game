@@ -1,6 +1,6 @@
 ---
 tags: [planejamento]
-atualizado: 2026-11-25
+atualizado: 2026-11-26
 ---
 # Próximos passos
 
@@ -63,3 +63,8 @@ atualizado: 2026-11-25
 - [x] Morte própria do golpe especial + poça de sangue + sangue no chão até renascer (2026-11-26)
 - [ ] Renascimento de verdade (hoje só o reset de teste): ao renascer, apagar o sangue do morto (já ligado em `EndPlay`/reset)
 - [ ] Ver com o usuário: `DyingWithouthead.fbx` (morte sem cabeça → decapitação?) e `esfacela.mp4`
+- [x] Baioneta como no vídeo x1 (guarda diagonal, estocada da cintura, defesas alta/esq./dir.) + agachar com armas de fogo + fumaça maior (2026-11-26)
+- [ ] Usuário jogar e avaliar: baioneta nova, agachar (C/Ctrl), fumaça
+- [ ] Agachar com arma branca: decidir depois de estudar o Chivalry
+- [ ] Ver a defesa alta da baioneta em jogo (bots só estocam) e talvez bots usarem E/C com o mosquete
+- [ ] Hitboxes agachado: as caixas descem junto, mas a das pernas fica parte abaixo do chão (ajustar se atrapalhar)

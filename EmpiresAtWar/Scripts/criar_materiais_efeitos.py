@@ -110,7 +110,7 @@ def amostra(m, tex, uv, x, y):
     return s
 
 
-def sprite_translucido(nome, tex, cor, emissivo, opacidade_max):
+def sprite_translucido(nome, tex, cor, emissivo, opacidade_max, borda_chao=60.0):
     """Fumaca/nevoa: translucido com luz volumetrica, borda suave no chao (DepthFade)."""
     m = novo(nome)
     m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
@@ -126,7 +126,7 @@ def sprite_translucido(nome, tex, cor, emissivo, opacidade_max):
     mel.connect_material_property(emi, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     a = op(m, E.MaterialExpressionMultiply, canal(m, s, "r", -150, 520), opac, 0, 520)   # R da textura = densidade
     a = op(m, E.MaterialExpressionMultiply, a, const(m, opacidade_max, 0, 620), 180, 520)
-    fade = expr(m, E.MaterialExpressionDepthFade, 360, 600, fade_distance_default=60.0)
+    fade = expr(m, E.MaterialExpressionDepthFade, 360, 600, fade_distance_default=borda_chao)
     ligar(a, fade, "Opacity")
     mel.connect_material_property(fade, "", unreal.MaterialProperty.MP_OPACITY)
     mel.recompile_material(m)
@@ -140,7 +140,8 @@ if os.environ.get("EAW_SO_TEXTURAS"):
     raise SystemExit   # so reimporta as texturas (os materiais e o cache de shaders ficam)
 
 # Fumaca de polvora negra: branco-acinzentado quente (como no Holdfast), um pouco de luz propria para nao ficar preta na sombra.
-sprite_translucido("M_Fumaca_Sprite", t_fumaca, (0.92, 0.91, 0.88), 0.32, 1.0)
+# Borda suave no chao de 2,2 m: os flocos grandes da nuvem (ate ~11 m de placa) nao mostram a linha onde cortam o chao.
+sprite_translucido("M_Fumaca_Sprite", t_fumaca, (0.92, 0.91, 0.88), 0.32, 1.0, borda_chao=220.0)
 # Nevoa de sangue no impacto: vermelho escuro.
 sprite_translucido("M_Sangue_Nevoa", t_fumaca, (0.22, 0.012, 0.01), 0.25, 0.9)
 

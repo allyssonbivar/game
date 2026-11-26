@@ -1,6 +1,6 @@
 ---
 tags: [bugs]
-atualizado: 2026-11-24
+atualizado: 2026-11-26
 ---
 # Bugs resolvidos
 
@@ -94,3 +94,6 @@ atualizado: 2026-11-24
 | 59 | 2026-11-26 | Manchas de sangue lilases / azuladas | Decal translúcido regravava a normal do chão (iluminado pelo céu como parede); no modo "stain" a cor multiplicada ficava quase preta | Modo DBuffer cor + rugosidade (`r.DBuffer=True`), rugosidade 0,5 |
 | 60 | 2026-11-26 | Poça escondida / no lugar errado | Nascia aos 2 s, com o soldado ainda ajoelhado; o corpo caía em outro lugar | Nasce quando a animação termina (3,2 s especial, 5 s pescoço) |
 | 61 | 2026-11-26 | No teste em rede o golpe automático não saía | O modo `-EAWAuto*` era reatribuído ao cliente que entrava | Só o 1º jogador recebe o modo automático |
+| 62 | 2026-11-26 | Linhas retas no chão em volta da nuvem de fumaça (e chuvisco granulado) | Flocos grandes (placas de até ~11 m) cortando o chão com borda suave de só 60 cm; ruído fino da textura somado em ~50 flocos | `M_Fumaca_Sprite` com borda suave de 220 cm (parâmetro `borda_chao` em `criar_materiais_efeitos.py`, a névoa de sangue continua 60); textura com menos ruído fino e mais desfoque |
+| 63 | 2026-11-26 | Mosquete sairia das mãos agachado/andando | Os ossos `arma`/`pistola` são filhos da raiz: seguem a animação da arma, mas o tronco e as mãos seguem o quadril final (agachado ou das pernas andando) | O animador aplica à arma a diferença entre o quadril final e o da animação da arma |
+| 64 | 2026-11-26 | Erro de compilação `SetCrouchedHalfHeight` | Função só existe na Unreal 5 | Na 4.27 é a propriedade `CrouchedHalfHeight` |
