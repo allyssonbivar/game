@@ -71,5 +71,6 @@ atualizado: 2026-11-26
 - [x] Combate fase 1 — movimento suave (8 direções, molas, freada, giro) (2026-11-26)
 - [x] Combate fase 2 — ataques: golpe correndo (Shift+clique), golpe de salto (clique no ar), chute (V) (2026-11-26)
 - [ ] Bots usarem chute, golpe correndo e de salto
-- [ ] Combate fase 3 — defesa andando/correndo e transições suaves entre golpes
+- [x] Combate fase 3 — defesa segurada andando + trocas suaves (2026-11-26)
+- [ ] Bots usarem a defesa segurada
 - [ ] Combate fase 4 — combos por sequência de cliques (sem mexer no golpe especial)

@@ -405,6 +405,13 @@ void AEAWCharacter::Tick(float DeltaSeconds)
 		AutoWalkTime += DeltaSeconds;
 		auto Crossed = [&](float Cycle, float At) { return FMath::Fmod(Prev, Cycle) < At && FMath::Fmod(AutoWalkTime, Cycle) >= At; };
 		if (AutoGolpe == TEXT("Chute") && Crossed(2.2f, 0.2f)) { InputKick(); }
+		else if (AutoGolpe == TEXT("Defesa"))
+		{
+			// Segura a defesa (aperta de novo depois de atordoado) e anda para a frente e para tras na frente do bot.
+			if (Combat->GetState() == EMeleeState::Idle) { InputParry(); }
+			const float T = FMath::Fmod(AutoWalkTime, 3.f);
+			if (T < 1.2f) MoveForward(0.6f); else if (T > 1.5f && T < 2.7f) MoveForward(-0.6f);
+		}
 		else if (AutoGolpe == TEXT("Salto"))
 		{
 			if (Crossed(2.6f, 0.1f)) { Jump(); }
@@ -426,7 +433,7 @@ void AEAWCharacter::Tick(float DeltaSeconds)
 		{
 			GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 			Csv = IFileManager::Get().CreateFileWriter(*(FPaths::ProjectLogDir() / TEXT("diagmov.csv")));
-			const FString H = TEXT("t,route,speed,vx,vy,yaw,flx,fly,flz,frx,fry,frz,hx,hy,hz,tx,ty,tz,px,py,pz,headx,heady,headz\n");
+			const FString H = TEXT("t,route,speed,vx,vy,yaw,flx,fly,flz,frx,fry,frz,hx,hy,hz,tx,ty,tz,px,py,pz,headx,heady,headz,st,dir\n");
 			Csv->Serialize(TCHAR_TO_ANSI(*H), H.Len());
 		}
 		const FTransform C = GetMesh()->GetComponentTransform();
@@ -434,14 +441,24 @@ void AEAWCharacter::Tick(float DeltaSeconds)
 		auto L = [&](const TCHAR* B) { return C.InverseTransformPosition(GetMesh()->GetSocketLocation(B)); };
 		const FVector V = GetActorTransform().InverseTransformVectorNoScale(GetVelocity());
 		const FVector FL = W(TEXT("ball_l")), FR = W(TEXT("ball_r")), H = L(TEXT("hand_r")), Tip = L(TEXT("weapon_r_tip")), P = L(TEXT("pelvis")), Hd = L(TEXT("head"));
-		const FString Line = FString::Printf(TEXT("%.4f,%.3f,%.1f,%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f\n"),
+		const FString Line = FString::Printf(TEXT("%.4f,%.3f,%.1f,%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%d\n"),
 			GetWorld()->GetTimeSeconds(), FMath::Fmod(AutoWalkTime, 14.f), GetVelocity().Size2D(), V.X, V.Y, GetActorRotation().Yaw,
-			FL.X, FL.Y, FL.Z, FR.X, FR.Y, FR.Z, H.X, H.Y, H.Z, Tip.X, Tip.Y, Tip.Z, P.X, P.Y, P.Z, Hd.X, Hd.Y, Hd.Z);
+			FL.X, FL.Y, FL.Z, FR.X, FR.Y, FR.Z, H.X, H.Y, H.Z, Tip.X, Tip.Y, Tip.Z, P.X, P.Y, P.Z, Hd.X, Hd.Y, Hd.Z, (int32)Combat->GetState(), (int32)Combat->GetDirection());
 		Csv->Serialize(TCHAR_TO_ANSI(*Line), Line.Len());
 		Csv->Flush();
 	}
 
 	ComposeMoveInput();
+	// Defesa segurada com a baioneta: a pose acompanha o golpe que vem (alta para golpe de cima, de lado para cortes/estocadas).
+	if (bAnimated && CurrentWeapon == EEAWWeapon::Mosquete && bBayonet && Combat->IsBlocking())
+	{
+		UAnimSequence* A = nullptr; UAnimSequence* AFP = nullptr;
+		if (ChooseMusketParry(A, AFP, true) && A && A != LastParryAnim)
+		{
+			LastParryAnim = A; LastParryAnimFP = AFP;
+			PlaySegment(A, 8.f / 30.f, 9.f / 30.f, 0.12f, false, AFP);   // troca suave para a nova pose de defesa
+		}
+	}
 	ApplyMovementSpeed();
 	UpdateFeel(DeltaSeconds);
 	UpdateFirearmView(DeltaSeconds);
@@ -657,9 +674,13 @@ void AEAWCharacter::InputStab()     { if (UsesMeleeInput() && !IsSwitching()) Co
 void AEAWCharacter::InputParry()
 {
 	if (UsingMusketFire()) { Firearm->RequestAim(true); return; }
-	if (UsesMeleeInput()) Combat->RequestParry();
+	if (UsesMeleeInput()) { Combat->RequestParry(); Combat->RequestBlockHold(true); }
 }
-void AEAWCharacter::InputAimReleased() { if (UsingMusketFire()) Firearm->RequestAim(false); }
+void AEAWCharacter::InputAimReleased()
+{
+	if (UsingMusketFire()) Firearm->RequestAim(false);
+	else if (UsesMeleeInput()) Combat->RequestBlockHold(false);   // soltou a defesa
+}
 void AEAWCharacter::InputFeint()    { if (UsesMeleeInput()) Combat->RequestFeint(); }
 void AEAWCharacter::InputReload()   { if (UsingMusketFire()) Firearm->RequestReload(); }
 void AEAWCharacter::InputToggleMelee()
@@ -759,6 +780,7 @@ void AEAWCharacter::ApplyMovementSpeed()
 	case EMeleeState::Release:  CombatMult = bSprintAttack ? 0.9f : 0.45f; bBusy = !bSprintAttack; break;
 	case EMeleeState::Recovery: CombatMult = 0.7f;  bBusy = true; break;
 	case EMeleeState::Parry:    CombatMult = 0.7f;  bBusy = true; break;
+	case EMeleeState::Block:    CombatMult = 0.6f;  bBusy = true; break;   // defendendo: anda devagar, sem correr
 	case EMeleeState::Stunned:  CombatMult = 0.35f; bBusy = true; break;
 	default: break;
 	}
@@ -1058,6 +1080,43 @@ void AEAWCharacter::PlaySegment(UAnimSequence* Anim, float Start, float End, flo
 	}
 }
 
+bool AEAWCharacter::ChooseMusketParry(UAnimSequence*& OutAnim, UAnimSequence*& OutFP, bool bOnlyIfAttacking) const
+{
+	// Defesa como no video x1, conforme o golpe do inimigo mais perto: golpe de cima/salto -> mosquete na horizontal sobre a
+	// cabeca; corte vindo da esquerda -> mosquete em pe a esquerda; da direita, estocadas, especial e golpe correndo -> a direita.
+	// Sem golpe vindo: defesa alta (ou, com bOnlyIfAttacking, nao muda nada).
+	EAttackDirection Incoming = EAttackDirection::Overhead;
+	bool bAttacking = false;
+	float Best = 400.f;
+	for (TActorIterator<AEAWCharacter> It(GetWorld()); It; ++It)
+	{
+		const float Dist = It->GetDistanceTo(this);
+		if (*It != this && Dist < Best && It->GetCombat())
+		{
+			Best = Dist;
+			const EMeleeState S = It->GetCombat()->GetState();
+			bAttacking = S == EMeleeState::Windup || S == EMeleeState::Release;
+			Incoming = bAttacking ? It->GetCombat()->GetDirection() : EAttackDirection::Overhead;
+			if (It->CurrentWeapon == EEAWWeapon::Mosquete && (Incoming == EAttackDirection::SlashLeft || Incoming == EAttackDirection::SlashRight))
+			{
+				Incoming = EAttackDirection::Stab;   // no mosquete o botao esquerdo e a estocada
+			}
+		}
+	}
+	if (bOnlyIfAttacking && (!bAttacking || Incoming == EAttackDirection::Kick))
+	{
+		return false;
+	}
+	switch (Incoming)
+	{
+	case EAttackDirection::SlashLeft:  OutAnim = AnimMAparoEsq; OutFP = AnimMAparoEsqFP; break;
+	case EAttackDirection::SlashRight: case EAttackDirection::Stab: case EAttackDirection::Special: case EAttackDirection::Sprint:
+		OutAnim = AnimMAparoDir; OutFP = AnimMAparoDirFP; break;
+	default: OutAnim = AnimMAparoAlto ? AnimMAparoAlto : AnimMAparoDir; OutFP = AnimMAparoAltoFP ? AnimMAparoAltoFP : AnimMAparoDirFP; break;
+	}
+	return true;
+}
+
 void AEAWCharacter::HandleCombatState(EMeleeState NewState, EAttackDirection Direction)
 {
 	if (!bAnimated)
@@ -1139,31 +1198,7 @@ void AEAWCharacter::HandleCombatState(EMeleeState NewState, EAttackDirection Dir
 	UAnimSequence* ParryFP = AnimParryFP;
 	if (bMusket)
 	{
-		// Defesa como no video x1, conforme o golpe do inimigo mais perto: golpe de cima -> mosquete na horizontal sobre a cabeca;
-		// corte vindo da esquerda/direita -> mosquete em pe daquele lado; estocadas -> desvia para a direita. Sem golpe: defesa alta.
-		EAttackDirection Incoming = EAttackDirection::Overhead;
-		float Best = 400.f;
-		for (TActorIterator<AEAWCharacter> It(GetWorld()); It; ++It)
-		{
-			const float Dist = It->GetDistanceTo(this);
-			if (*It != this && Dist < Best && It->GetCombat())
-			{
-				Best = Dist;
-				const EMeleeState S = It->GetCombat()->GetState();
-				Incoming = (S == EMeleeState::Windup || S == EMeleeState::Release) ? It->GetCombat()->GetDirection() : EAttackDirection::Overhead;
-				if (It->CurrentWeapon == EEAWWeapon::Mosquete && (Incoming == EAttackDirection::SlashLeft || Incoming == EAttackDirection::SlashRight))
-				{
-					Incoming = EAttackDirection::Stab;   // no mosquete o botao esquerdo e a estocada
-				}
-			}
-		}
-		switch (Incoming)
-		{
-		case EAttackDirection::SlashLeft:  Parry = AnimMAparoEsq; ParryFP = AnimMAparoEsqFP; break;
-		case EAttackDirection::SlashRight: case EAttackDirection::Stab: case EAttackDirection::Special:
-			Parry = AnimMAparoDir; ParryFP = AnimMAparoDirFP; break;
-		default: Parry = AnimMAparoAlto ? AnimMAparoAlto : AnimMAparoDir; ParryFP = AnimMAparoAltoFP ? AnimMAparoAltoFP : AnimMAparoDirFP; break;
-		}
+		ChooseMusketParry(Parry, ParryFP, false);
 	}
 	UAnimSequence* Feint = bMusket ? AnimMFinta : AnimFinta;
 	UAnimSequence* FeintFP = bMusket ? AnimMFintaFP : AnimFintaFP;
@@ -1220,8 +1255,16 @@ void AEAWCharacter::HandleCombatState(EMeleeState NewState, EAttackDirection Dir
 		}
 		break;
 	case EMeleeState::Recovery:      PlaySegment(Attack, T(ReleaseEnd), T(Last), D, false, AttackFP); break;
-	case EMeleeState::Parry:         PlaySegment(Parry, T(1), T(10), D, false, ParryFP); break;
-	case EMeleeState::ParryRecovery: PlaySegment(Parry, T(10), T(20), D, false, ParryFP); break;
+	case EMeleeState::Parry:
+		LastParryAnim = Parry; LastParryAnimFP = ParryFP;
+		PlaySegment(Parry, T(1), T(10), D, false, ParryFP); break;
+	case EMeleeState::Block:
+		// Defesa segurada: fica na pose da defesa (quadro 10) enquanto segura; as pernas andam por baixo.
+		if (LastParryAnim) { Parry = LastParryAnim; ParryFP = LastParryAnimFP; }
+		PlaySegment(Parry, T(9), T(10), 0.1f, false, ParryFP); break;
+	case EMeleeState::ParryRecovery:
+		if (LastParryAnim) { Parry = LastParryAnim; ParryFP = LastParryAnimFP; }
+		PlaySegment(Parry, T(10), T(20), D, false, ParryFP); break;
 	case EMeleeState::Feint:         PlaySegment(Feint, T(11), T(19), D, false, FeintFP); break;
 	case EMeleeState::Stunned:       PlaySegment(Blocked, T(1), T(17), D, false, BlockedFP); break;
 	case EMeleeState::Incapacitated: StartRagdoll(); break;

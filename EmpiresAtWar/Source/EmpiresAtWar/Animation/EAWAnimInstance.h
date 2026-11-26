@@ -102,6 +102,7 @@ private:
 	float SegElapsed = 0.f;
 	FEAWSegment PrevSeg;
 	float PrevSegTime = 0.f;
+	float PrevSegElapsed = 0.f;   // o trecho anterior continua andando durante a mistura (nao congela)
 	float PrevBlend = 1.f;
 
 	float WalkPhase = 0.f, RunPhase = 0.f;

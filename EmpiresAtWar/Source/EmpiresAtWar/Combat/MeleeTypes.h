@@ -15,7 +15,8 @@ enum class EMeleeState : uint8
 	ParryRecovery,  // parry terminou sem defender nada
 	Feint,          // finta: cancelou o golpe na preparacao
 	Stunned,        // golpe defendido / guarda quebrada
-	Incapacitated   // ferido demais para lutar, ou morto
+	Incapacitated,  // ferido demais para lutar, ou morto
+	Block           // defesa segurada (botao direito apertado depois da janela do parry): anda devagar, bloqueia sem contra-ataque
 };
 
 UENUM(BlueprintType)
@@ -140,6 +141,10 @@ struct FMeleeWeaponConfig
 	/** Stamina gasta ao defender um golpe com parry. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Defesa")
 	float ParryBlockStaminaCost = 12.f;
+
+	/** Defesa segurada: cada golpe bloqueado custa mais stamina que o parry na hora certa e nao da contra-ataque. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Defesa")
+	float HeldBlockStaminaCost = 20.f;
 
 	/** Angulo maximo (graus) entre a frente do defensor e o atacante para o parry valer. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Defesa")

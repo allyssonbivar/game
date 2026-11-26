@@ -230,6 +230,22 @@ void UMeleeCombatComponent::RequestChargeRelease(bool bFire, EAttackDirection Fa
 	if (GetOwner() && GetOwner()->HasAuthority()) HandleChargeRelease(bFire, Fallback); else ServerChargeRelease(bFire, Fallback);
 }
 
+void UMeleeCombatComponent::RequestBlockHold(bool bHold)
+{
+	if (GetOwner() && GetOwner()->HasAuthority()) { HandleBlockHold(bHold); }
+	else { ServerBlockHold(bHold); }
+}
+bool UMeleeCombatComponent::ServerBlockHold_Validate(bool bHold) { return true; }
+void UMeleeCombatComponent::ServerBlockHold_Implementation(bool bHold) { HandleBlockHold(bHold); }
+void UMeleeCombatComponent::HandleBlockHold(bool bHold)
+{
+	bBlockHeld = bHold;
+	if (!bHold && Rep.State == EMeleeState::Block)
+	{
+		EnterState(EMeleeState::ParryRecovery, Rep.Direction, 0.2f);   // soltou: abaixa a guarda
+	}
+}
+
 bool UMeleeCombatComponent::ServerChargeStart_Validate() { return true; }
 void UMeleeCombatComponent::ServerChargeStart_Implementation() { HandleChargeStart(); }
 bool UMeleeCombatComponent::ServerChargeRelease_Validate(bool bFire, EAttackDirection Fallback) { return true; }
@@ -316,6 +332,10 @@ void UMeleeCombatComponent::HandleAttack(EAttackDirection Direction)
 
 	switch (Rep.State)
 	{
+	case EMeleeState::Block:
+		StartWindup(Direction, Spec->Windup);
+		break;
+
 	case EMeleeState::Idle:
 		if (HasRiposte())
 		{
@@ -463,7 +483,9 @@ void UMeleeCombatComponent::OnStateFinished()
 		break;
 
 	case EMeleeState::Parry:
-		EnterState(EMeleeState::ParryRecovery, Rep.Direction, Config.ParryRecovery);
+		// Ainda segurando o botao: continua defendendo (andando devagar) ate soltar.
+		if (bBlockHeld) { EnterState(EMeleeState::Block, Rep.Direction, 0.f); }
+		else { EnterState(EMeleeState::ParryRecovery, Rep.Direction, Config.ParryRecovery); }
 		break;
 
 	case EMeleeState::Recovery:
@@ -609,7 +631,7 @@ void UMeleeCombatComponent::ResolveHit(const FHitResult& Hit)
 			{
 				VictimCombat->bComboQueued = false;
 				VictimCombat->EnterState(EMeleeState::Stunned, VictimCombat->Rep.Direction,
-					VS == EMeleeState::Parry ? VictimCombat->GetConfig().StunWhenGuardBroken : 0.6f);
+					(VS == EMeleeState::Parry || VS == EMeleeState::Block) ? VictimCombat->GetConfig().StunWhenGuardBroken : 0.6f);
 			}
 		}
 		if (ACharacter* VictimChar = Cast<ACharacter>(Victim))
@@ -619,6 +641,29 @@ void UMeleeCombatComponent::ResolveHit(const FHitResult& Hit)
 		}
 		UE_LOG(LogEAWCombat, Log, TEXT("%s chutou %s"), *Owner->GetName(), *Victim->GetName());
 		return;
+	}
+
+	// Defesa segurada: bloqueia de frente sem contra-ataque; custa mais stamina; sem stamina a guarda quebra.
+	if (VictimCombat && VictimCombat->Rep.State == EMeleeState::Block)
+	{
+		const FMeleeWeaponConfig& VictimConfig = VictimCombat->GetConfig();
+		if (IsFacing(Victim, Owner, VictimConfig.ParryHalfAngle))
+		{
+			if (VictimCombat->SpendStamina(VictimConfig.HeldBlockStaminaCost))
+			{
+				EnterState(EMeleeState::Recovery, Rep.Direction, Spec ? Spec->Recovery * TimeMultiplier() : 0.5f);
+			}
+			else
+			{
+				VictimCombat->Stamina = 0.f;
+				VictimCombat->LastStaminaSpendTime = Now();
+				VictimCombat->EnterState(EMeleeState::Stunned, VictimCombat->Rep.Direction, VictimConfig.StunWhenGuardBroken);
+				EnterState(EMeleeState::Recovery, Rep.Direction, Spec ? Spec->Recovery * TimeMultiplier() : 0.5f);
+			}
+			UE_LOG(LogEAWCombat, Log, TEXT("%s bloqueou (defesa segurada) o golpe de %s"), *Victim->GetName(), *Owner->GetName());
+			MulticastImpact(Hit.ImpactPoint, EBodyRegion::None, true, Victim);
+			return;
+		}
 	}
 
 	// Parry: defensor na janela de defesa e virado para o atacante.
@@ -679,7 +724,8 @@ void UMeleeCombatComponent::ResolveHit(const FHitResult& Hit)
 	{
 		const EMeleeState VictimState = VictimCombat->Rep.State;
 		if (VictimState == EMeleeState::Windup || VictimState == EMeleeState::Idle || VictimState == EMeleeState::Recovery
-			|| VictimState == EMeleeState::Feint || VictimState == EMeleeState::ParryRecovery || VictimState == EMeleeState::Parry)
+			|| VictimState == EMeleeState::Feint || VictimState == EMeleeState::ParryRecovery || VictimState == EMeleeState::Parry
+			|| VictimState == EMeleeState::Block)
 		{
 			VictimCombat->bComboQueued = false;
 			VictimCombat->EnterState(EMeleeState::Stunned, VictimCombat->Rep.Direction, Rep.Direction == EAttackDirection::Special ? 0.9f : 0.35f);
@@ -734,6 +780,9 @@ FMeleePose UMeleeCombatComponent::ComputePose() const
 	case EMeleeState::Recovery:
 	case EMeleeState::ParryRecovery:
 		return LerpPose(TransitionFromPose, Config.GuardPose, FMath::InterpEaseInOut(0.f, 1.f, A, 2.f));
+
+	case EMeleeState::Block:
+		return Config.ParryPose;
 
 	case EMeleeState::Parry:
 		// Levanta a guarda rapido, no primeiro quarto da janela.

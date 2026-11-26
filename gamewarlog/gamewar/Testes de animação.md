@@ -159,3 +159,6 @@ Capturas a cada 0,2–0,3 s com `-EAWDuelo`; cortes forçados com `-EAWTesteCort
 | Golpe de salto (bot a 1,7 m) | ✔ pula, sabre no alto, desce e acerta (60) |
 | Chute (sabre e baioneta) | ✔ joelho sobe, pé na barriga, bot empurrado ~1 m e atordoado; alcance ~1,5 m |
 | 1ª pessoa (correndo/salto) | ✔ lâmina cruza a tela; mão esquerda não tapa mais (bug #69) |
+| Defesa segurada (sabre, bot atacando) | ✔ lâmina erguida andando para frente/trás; 2 golpes bloqueados (o 1º golpe passou antes de a guarda subir) |
+| Defesa segurada (baioneta) | ✔ bloqueia; a pose troca de alta para lateral quando o bot ataca |
+| Trocas entre golpes (medição) | = sem mudança medida (já eram mais suaves que o meio dos golpes) |

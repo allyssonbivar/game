@@ -71,6 +71,7 @@ void UEAWAnimInstance::SetCombatSegment(UAnimSequence* Anim, float Start, float 
 	{
 		// O trecho atual congela onde esta e some em 0,1 s (sem "pulo" de pose).
 		PrevSeg = Seg;
+		PrevSegElapsed = SegElapsed;
 		PrevSegTime = SegmentTime(Seg, SegElapsed);
 		PrevBlend = 0.f;
 	}
@@ -86,7 +87,10 @@ void UEAWAnimInstance::SetCombatSegment(UAnimSequence* Anim, float Start, float 
 void UEAWAnimInstance::TickValues(float Dt, FEAWAnimFrame& Out)
 {
 	SegElapsed += Dt;
-	PrevBlend = FMath::Min(1.f, PrevBlend + Dt / 0.1f);
+	// Mistura de 0,12 s entre trechos; o anterior continua tocando ate sumir (antes congelava no quadro da troca).
+	PrevBlend = FMath::Min(1.f, PrevBlend + Dt / 0.12f);
+	PrevSegElapsed += Dt;
+	PrevSegTime = SegmentTime(PrevSeg, PrevSegElapsed);
 
 	// Velocidade no referencial do personagem.
 	const APawn* Pawn = TryGetPawnOwner();
@@ -197,7 +201,7 @@ void UEAWAnimInstance::TickValues(float Dt, FEAWAnimFrame& Out)
 	Out.CombatTime = SegmentTime(Seg, SegElapsed);
 	Out.Prev = PrevBlend < 1.f ? PrevSeg.Anim : nullptr;
 	Out.PrevTime = PrevSegTime;
-	Out.PrevBlend = PrevBlend;
+	Out.PrevBlend = PrevBlend * PrevBlend * (3.f - 2.f * PrevBlend);   // curva em S: comeca e termina sem tranco
 	Out.Loco[0] = WalkForward; Out.Loco[1] = WalkBack; Out.Loco[2] = WalkLeft; Out.Loco[3] = WalkRight; Out.Loco[4] = Run;
 	Out.LocoW[0] = W8[0]; Out.LocoW[1] = W8[4]; Out.LocoW[2] = W8[6]; Out.LocoW[3] = W8[2];
 	for (int32 k = 0; k < 4; ++k)

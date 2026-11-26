@@ -104,6 +104,9 @@ public:
 	void RequestChargeStart();
 	/** Solta a carga: bFire = golpe especial (so com a carga completa); senao vira o golpe Fallback. */
 	void RequestChargeRelease(bool bFire, EAttackDirection Fallback);
+	/** Botao de defesa segurado/solto: depois da janela do parry, segurando, fica em defesa (Block) ate soltar. */
+	void RequestBlockHold(bool bHold);
+	bool IsBlocking() const { return Rep.State == EMeleeState::Block; }
 	bool IsCharging() const { return Rep.State == EMeleeState::Windup && Rep.Direction == EAttackDirection::Special; }
 	/** 0..1 da carga do golpe especial. */
 	float GetChargeAlpha() const;
@@ -165,6 +168,10 @@ protected:
 	UFUNCTION(Server, Reliable, WithValidation)
 	void ServerChargeRelease(bool bFire, EAttackDirection Fallback);
 
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerBlockHold(bool bHold);
+	void HandleBlockHold(bool bHold);
+
 	void HandleChargeStart();
 	void HandleChargeRelease(bool bFire, EAttackDirection Fallback);
 
@@ -212,6 +219,7 @@ protected:
 
 	// So no servidor
 	bool bComboQueued = false;
+	bool bBlockHeld = false;   // jogador segurando o botao de defesa
 	EAttackDirection QueuedDirection = EAttackDirection::SlashLeft;
 	float RiposteUntil = -1.f;
 	float LastStaminaSpendTime = -100.f;

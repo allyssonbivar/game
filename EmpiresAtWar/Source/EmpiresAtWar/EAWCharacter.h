@@ -363,6 +363,11 @@ protected:
 	UPROPERTY() class UAnimSequence* AnimMChute = nullptr;   UPROPERTY() class UAnimSequence* AnimMChuteFP = nullptr;
 	/** O proximo trecho de combate vale para o corpo inteiro (pernas tambem): chute e golpe de salto. */
 	bool bSegmentFullBody = false;
+	/** Ultima defesa tocada (a defesa segurada e a volta a guarda usam a mesma, sem trocar de pose no meio). */
+	UPROPERTY() class UAnimSequence* LastParryAnim = nullptr;
+	UPROPERTY() class UAnimSequence* LastParryAnimFP = nullptr;
+	/** Baioneta: escolhe a defesa (alta/esq./dir.) pelo golpe do inimigo mais perto. bOnlyIfAttacking: so se houver golpe vindo. */
+	bool ChooseMusketParry(class UAnimSequence*& OutAnim, class UAnimSequence*& OutFP, bool bOnlyIfAttacking) const;
 	/** Lamina da arma atual (o chute troca para a perna e depois volta). */
 	FName SavedGrip, SavedTip;
 	float SavedBladeStart = 0.f, SavedBladeLength = 0.f;

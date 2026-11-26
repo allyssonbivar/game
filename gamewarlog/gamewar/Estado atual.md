@@ -224,3 +224,14 @@ Sem escudo (decisão do usuário). **O golpe especial não mudou.** Animações 
 - Animador: trechos de "corpo inteiro" (chute e golpe de salto) — as pernas seguem o golpe mesmo andando, com troca suave (mola).
 - Versões `_FP`: mão esquerda baixa e quadril quase parado (na 3ª pessoa a mão esquerda vai à frente para equilibrar; na 1ª pessoa ela tapava a visão).
 - Teste: `-EAWAutoGolpe=Chute|Salto|Correndo` (o seu soldado repete o golpe contra o bot).
+
+## Combate — fase 3: defesa segurada e trocas suaves (2026-11-26) ✔ testado contra bot atacando (sabre e baioneta)
+- **Defesa segurada (botão direito apertado):** o clique continua sendo o parry na hora certa (janela de 0,3 s, contra-ataque rápido se defender). **Segurando** depois da janela, o soldado **fica em defesa** (estado novo `Block`) até soltar, **andando devagar (60%) em qualquer direção**, sem correr — como o "Block Walk/Run" do vídeo de referência de duas mãos.
+  - Bloqueia golpes de frente (mesmo ângulo do parry), **sem contra-ataque**, custando **20 de stamina** por golpe (parry custa 12). Sem stamina, a guarda quebra (atordoado 0,9 s).
+  - O atacante bloqueado volta à guarda (sem ficar atordoado, como no parry certo).
+  - O **chute quebra a defesa segurada**. Golpe de costas/de lado passa.
+  - Atacar a partir da defesa segurada sai direto para o golpe.
+  - Soltar o botão: abaixa a guarda em 0,2 s.
+  - Baioneta: a pose da defesa **acompanha o golpe que vem** (alta para golpe de cima/salto; em pé à esquerda/direita para cortes, estocadas, especial e golpe correndo).
+- **Trocas entre golpes:** mistura de 0,12 s com curva em S e o trecho anterior continua tocando durante a mistura (antes congelava). **Medição:** já não era o problema — nas 43 trocas do teste a ponta da arma acelera menos (p95 ~18.000) que no meio dos golpes (p95 ~42.000); depois da mudança ficou igual dentro da variação (p95 ~19.000). Os maiores "trancos" são o próprio impacto do golpe (lâmina mais rápida de propósito).
+- Testes: `-EAWAutoGolpe=Defesa` (segura a defesa e anda para frente/trás na frente do bot); registro por quadro agora grava o estado do combate (`-EAWDiagMov`).
