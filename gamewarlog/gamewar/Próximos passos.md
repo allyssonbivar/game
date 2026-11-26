@@ -52,3 +52,8 @@ atualizado: 2026-11-25
 - [ ] Arma no chão: brilho/contorno quando estiver na mira (hoje só o aviso)
 - [x] Conferido (2026-11-25): sabre/faca/machado chegam certos na Unreal; só a pistola girava (bug #52)
 - [ ] Recarga da pistola em 1ª pessoa: a mão esquerda passa embaixo no centro ao pôr a pólvora (8,8 cm de folga no alcance da vareta)
+- [x] Morte por tiro no pescoço com jato arterial (2026-11-25) — animação Mixamo "Dying"
+- [x] Sangue e fumaça com sprites e texturas (2026-11-25)
+- [ ] Usuário avaliar o visual do sangue/fumaça no jogo e dizer o que ajustar (quantidade, cor, tamanho)
+- [ ] Mixamo: confirmar a licença antes do lançamento (a animação de morte também vem de lá)
+- [ ] Cabeça (não pescoço): animação/efeito próprio de tiro na cabeça (referência "brain burst")

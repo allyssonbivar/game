@@ -19,6 +19,7 @@
 #include "TimerManager.h"
 #include "UnrealClient.h"
 #include "EngineUtils.h"
+#include "Camera/CameraComponent.h"
 #include "GameFramework/PlayerStart.h"
 
 AEAWGameMode::AEAWGameMode()
@@ -93,10 +94,25 @@ void AEAWGameMode::HandleStartingNewPlayer_Implementation(APlayerController* New
 	else
 	{
 		Super::HandleStartingNewPlayer_Implementation(NewPlayer);
-		if (bSpawnBotOnStart && !bSpawnedInitialBot && NewPlayer && NewPlayer->GetPawn())
+		if ((bSpawnBotOnStart || FParse::Param(Cmd, TEXT("EAWBot"))) && !bSpawnedInitialBot && NewPlayer && NewPlayer->GetPawn())
 		{
 			bSpawnedInitialBot = true;
-			SpawnBotNear(NewPlayer->GetPawn());
+			AEAWCharacter* Bot = SpawnBotNear(NewPlayer->GetPawn());
+			// -EAWCamBot=N : camera fixa a N cm ao lado do bot, na altura do pescoco (ver sangue e fumaca de perto).
+			float CamDist = 0.f;
+			if (Bot && FParse::Value(Cmd, TEXT("EAWCamBot="), CamDist))
+			{
+				const FVector Neck = Bot->GetActorLocation() + FVector(0.f, 0.f, 55.f);
+				const FVector Shooter = NewPlayer->GetPawn()->GetActorLocation();
+				const FVector Side = FVector::CrossProduct((Neck - Shooter).GetSafeNormal2D(), FVector::UpVector);
+				const FVector CamLoc = (Neck + Shooter) * 0.5f + Side * CamDist + FVector(0.f, 0.f, -10.f);
+				const FVector LookAt = Neck * 0.7f + Shooter * 0.3f;
+				if (ACameraActor* Cam = GetWorld()->SpawnActor<ACameraActor>(CamLoc, (LookAt - CamLoc).Rotation()))
+				{
+					Cam->GetCameraComponent()->SetFieldOfView(70.f);
+					NewPlayer->SetViewTarget(Cam);
+				}
+			}
 		}
 	}
 
@@ -223,6 +239,25 @@ void AEAWGameMode::AutoFire()
 	}
 	UEAWFirearmComponent* F = Soldier->GetFirearm();
 	AutoPhaseTime += 0.1f;
+	// -EAWMirarPescoco: aponta para o pescoco do soldado mais proximo (teste da morte por tiro no pescoco).
+	if (AutoPhase <= 1 && FParse::Param(FCommandLine::Get(), TEXT("EAWMirarPescoco")))
+	{
+		AEAWCharacter* Best = nullptr;
+		for (TActorIterator<AEAWCharacter> It(GetWorld()); It; ++It)
+		{
+			if (*It != Soldier && (!Best || Soldier->GetDistanceTo(*It) < Soldier->GetDistanceTo(Best)))
+			{
+				Best = *It;
+			}
+		}
+		if (Best)
+		{
+			FVector Origin, Dir;
+			Soldier->GetShotAim(Origin, Dir);
+			const FVector Neck = (Best->GetMesh()->GetSocketLocation(TEXT("neck_01")) + Best->GetMesh()->GetSocketLocation(TEXT("head"))) * 0.5f;
+			AutoPC->SetControlRotation((Neck - Origin).Rotation());
+		}
+	}
 	switch (AutoPhase)
 	{
 	case 0: if (AutoPhaseTime > 1.0f && F->GetState() == EFirearmState::Lowered) { F->RequestAim(true); AutoPhase = 1; AutoPhaseTime = 0.f; } break;

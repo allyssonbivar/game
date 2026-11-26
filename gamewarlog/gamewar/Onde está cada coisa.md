@@ -13,7 +13,11 @@ atualizado: 2026-11-24
 | Script de importação no Unreal | `EmpiresAtWar\Scripts\import_soldado.py` |
 | Física do esqueleto (rodar após reimportar) | `EmpiresAtWar\Scripts\refazer_fisica.py` → `Source\EmpiresAtWar\Tools\EAWEditorTools.cpp` |
 | Peças do desmembramento | Blender → `Modelos\Export\SK_Peca_*.fbx` → `Scripts\import_pecas.py` → `/Game/Personagem/Pecas` |
-| Materiais de sangue | `Scripts\criar_materiais_sangue.py` → `/Game/Efeitos/M_Sangue`, `M_Sangue_Mancha` |
+| Materiais de sangue (antigos: gotas e ferida) | `Scripts\criar_materiais_sangue.py` → `/Game/Efeitos/M_Sangue` |
+| Texturas de sangue e fumaça | `Scripts\gerar_texturas_efeitos.py` (Python com numpy/Pillow) → `Texturas\*.png` |
+| Materiais de sprite (fumaça, sangue, névoa, mancha) | `Scripts\criar_materiais_efeitos.py` → `/Game/Efeitos/M_Fumaca_Sprite`, `M_Sangue_Sprite`, `M_Sangue_Nevoa`, `M_Sangue_Mancha` (editor fechado; `EAW_SO_TEXTURAS=1` só reimporta texturas) |
+| Sprites (código) | `Source\EmpiresAtWar\Effects\EAWSprites.h`, `EAWBloodFX`, `EAWSmokeFX` |
+| Morte por tiro no pescoço | Blender `AS_Morte_Pescoco` (de `Modelos\ex\Dying.fbx`, Mixamo, fora do Git) → `EAWCharacter::StartNeckDeath` |
 | Gotas, manchas e jato (C++) | `Source\EmpiresAtWar\Effects\EAWBloodFX.h/.cpp` |
 | Corte de membros | `EAWCharacter.cpp` → `NoteHit`, `TryDismember`, `AddCap`, `ClearGore` |
 | Tela vermelha | `Source\EmpiresAtWar\EAWHUD.h/.cpp` |

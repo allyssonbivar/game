@@ -23,3 +23,6 @@ Modelos/*.obj
 Animar/
 # Personagem bruto do Mixamo (a versao usada esta no Soldado.blend)
 Modelos/Soldado_TPose.fbx
+
+# Animacao bruta do Mixamo ("Dying"); a versao usada (transferida para o nosso esqueleto) esta no Soldado.blend
+Modelos/ex/

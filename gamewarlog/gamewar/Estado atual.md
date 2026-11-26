@@ -163,3 +163,12 @@ Todas começam e terminam na guarda. Golpes aceleram até o impacto (ease-in) e 
   - `Multiplayer_2Janelas.bat` — servidor + cliente no mesmo PC.
 - No editor: Play ▸ ⋮ ▸ *Number of Players* = 2, *Net Mode* = **Play As Listen Server**.
 - Teste: o cliente entrou ("Join succeeded"), carregou os dois soldados e recebeu mosquete + sabre.
+
+## Morte por tiro no pescoço + sangue e fumaça novos (2026-11-25) ✔ testado (side cam, 1ª pessoa e multiplayer)
+- **Morte por tiro no pescoço:** animação "Dying" da Mixamo (trazida pelo usuário em `Modelos\ex\Dying.fbx`, fora do Git) transferida no Blender para o nosso esqueleto → `AS_Morte_Pescoco` (174 quadros, 5,8 s: cambaleia, cai de joelhos e de bruços). O esqueleto Mixamo tem a mesma pose de referência do soldado, então a transferência é direta osso a osso.
+  - Bala no pescoço (dano mortal) → em vez do ragdoll toca a animação e a **artéria esguicha**: 2 jatos (entrada e saída) presos ao `neck_01`, pulsando no ritmo do coração (~95 → 60 por minuto), enfraquecendo em 10 s e 7 s.
+  - Multiplayer: o servidor marca `bNeckDeath` (replicado) antes do dano; chega no mesmo pacote do "fora de combate", então todas as máquinas tocam a mesma morte. Testado com 2 janelas.
+- **Sangue novo (sprites com textura, sem Niagara):** filetes esticados na direção do voo (contas e fiapos, como nas imagens de referência do usuário), gotas, névoa vermelha no impacto, jato arterial e **manchas de respingo** no chão (4 formatos, até 120, somem em 60 s). Saída da bala: leque radial de filetes.
+- **Fumaça nova (referência: vídeo do Holdfast 2:09 e 3:39):** flocos com sombra própria que olham para a câmera; nuvem densa ~1,5–3 m à frente do cano, rolos em volta da boca, sopro da caçoleta; fica 5–7 s e deriva com o vento (35 cm/s).
+- Texturas geradas por ruído (do zero): `EmpiresAtWar\Texturas\T_Fumaca.png`, `T_Sangue_Jato.png`, `T_Sangue_Mancha.png` (atlas 2×2; R = transparência, G/B = sombreado).
+- Modos de teste: `-EAWBot` (cria o bot de treino), `-EAWMirarPescoco` (tiro automático no pescoço do mais próximo), `-EAWTestePescoco` (toda bala conta como pescoço), `-EAWCamBot=N` (câmera fixa ao lado do bot).

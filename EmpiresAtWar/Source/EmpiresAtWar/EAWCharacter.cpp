@@ -189,6 +189,7 @@ AEAWCharacter::AEAWCharacter()
 	EAW_ANIM(AnimMEstocadaLonga, "AS_Mosquete_EstocadaLonga"); EAW_ANIM(AnimMEstocadaLongaFP, "AS_Mosquete_EstocadaLonga_FP");
 	EAW_ANIM(AnimMAparoDir, "AS_Mosquete_AparoDir"); EAW_ANIM(AnimMAparoDirFP, "AS_Mosquete_AparoDir_FP");
 	EAW_ANIM(AnimMAparoEsq, "AS_Mosquete_AparoEsq"); EAW_ANIM(AnimMAparoEsqFP, "AS_Mosquete_AparoEsq_FP");
+	EAW_ANIM(AnimMortePescoco, "AS_Morte_Pescoco");
 	EAW_ANIM(AnimMBloqueado, "AS_Mosquete_Bloqueado"); EAW_ANIM(AnimMBloqueadoFP, "AS_Mosquete_Bloqueado_FP");
 	EAW_ANIM(AnimMFinta, "AS_Mosquete_Finta"); EAW_ANIM(AnimMFintaFP, "AS_Mosquete_Finta_FP");
 #undef EAW_ANIM
@@ -305,6 +306,7 @@ void AEAWCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 	DOREPLIFETIME(AEAWCharacter, bSprinting);
 	DOREPLIFETIME(AEAWCharacter, CurrentWeapon);
 	DOREPLIFETIME(AEAWCharacter, bBayonet);
+	DOREPLIFETIME(AEAWCharacter, bNeckDeath);
 	DOREPLIFETIME(AEAWCharacter, PrimaryWeapon);
 	DOREPLIFETIME(AEAWCharacter, SecondaryWeapon);
 }
@@ -899,12 +901,13 @@ void AEAWCharacter::HandleCombatState(EMeleeState NewState, EAttackDirection Dir
 	}
 }
 
-void AEAWCharacter::StartRagdoll()
+void AEAWCharacter::BeginDeathCommon()
 {
-	if (!bAnimated || GetMesh()->IsSimulatingPhysics())
+	if (bDeathBegun)
 	{
 		return;
 	}
+	bDeathBegun = true;
 	// Ao cair, o dono passa a ver o proprio corpo (os bracos de 1a pessoa somem).
 	if (bFirstPersonActive)
 	{
@@ -916,11 +919,110 @@ void AEAWCharacter::StartRagdoll()
 		Camera->SetFieldOfView(FPFieldOfView);
 	}
 	// O morto larga a arma da mao: ela cai com fisica e pode ser pega por outro soldado (F).
-	WeaponTP->SetVisibility(false);
 	if (HasAuthority())
 	{
 		DropWeapon(CurrentWeapon, !IsFirearmWeapon(CurrentWeapon) || Firearm->IsLoaded(), LastHitDir * 150.f);
 	}
+	WeaponTP->SetVisibility(false);
+	// A capsula nao pode segurar o corpo caido; as hitboxes de pe nao podem receber golpes no ar.
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	for (UCapsuleComponent* Hitbox : Hitboxes)
+	{
+		Hitbox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Hitbox->SetHiddenInGame(true);
+	}
+}
+
+void AEAWCharacter::MarkNeckDeath()
+{
+	if (HasAuthority() && bAnimated && AnimMortePescoco && !GetMesh()->IsSimulatingPhysics() && Wounds->CanFight())
+	{
+		bNeckDeath = true;
+	}
+}
+
+void AEAWCharacter::OnRep_NeckDeath()
+{
+	if (bNeckDeath)
+	{
+		StartNeckDeath();
+	}
+	else
+	{
+		EndNeckDeath();
+	}
+}
+
+void AEAWCharacter::StartNeckDeath()
+{
+	if (bNeckDying || !bAnimated || !AnimMortePescoco || GetMesh()->IsSimulatingPhysics())
+	{
+		return;
+	}
+	bNeckDying = true;
+	BeginDeathCommon();
+	GetCharacterMovement()->StopMovementImmediately();
+	GetCharacterMovement()->DisableMovement();
+	CustomTimeDilation = 1.f;
+	if (HitReactAlpha > 0.f)
+	{
+		GetMesh()->SetAllBodiesBelowSimulatePhysics(TEXT("spine_01"), false, true);
+		HitReactAlpha = 0.f;
+	}
+	// Corpo inteiro na animacao da morte (cambaleia, cai de joelhos e de brucos); a ultima pose fica.
+	GetMesh()->PlayAnimation(AnimMortePescoco, false);
+	// Arteria cortada: dois jatos (entrada e saida da bala) que pulsam com o coracao e enfraquecem em ~10 s.
+	if (AEAWBloodFX::IsGoreEnabled())
+	{
+		const FTransform Neck = GetMesh()->GetSocketTransform(TEXT("neck_01"));
+		const FVector Side = GetActorRightVector();
+		const FVector Fwd = GetActorForwardVector();
+		const FVector P = Neck.GetLocation() + FVector(0.f, 0.f, 4.f);
+		AEAWBloodFX::Jet(GetWorld(), GetMesh(), TEXT("neck_01"), P + Side * 5.f + Fwd * 2.f, (Side * 0.8f + Fwd * 0.4f + FVector(0.f, 0.f, 0.45f)).GetSafeNormal(),
+			10.f, 420.f, 560.f);
+		AEAWBloodFX::Jet(GetWorld(), GetMesh(), TEXT("neck_01"), P - Side * 5.f + Fwd * 1.f, (-Side * 0.8f + Fwd * 0.2f + FVector(0.f, 0.f, 0.3f)).GetSafeNormal(),
+			7.f, 260.f, 420.f);
+	}
+	UE_LOG(LogEAWCombat, Log, TEXT("%s: tiro no pescoco -> animacao de morte e jato arterial"), *GetName());
+}
+
+void AEAWCharacter::EndNeckDeath()
+{
+	if (!bNeckDying)
+	{
+		return;
+	}
+	bNeckDying = false;
+	bDeathBegun = false;
+	GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+	GetMesh()->SetAnimInstanceClass(UEAWAnimInstance::StaticClass());
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	if (bFirstPersonActive)
+	{
+		FirstPersonMesh->SetVisibility(true);
+		GetMesh()->SetOwnerNoSee(true);
+	}
+	for (UCapsuleComponent* Hitbox : Hitboxes)
+	{
+		Hitbox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+		Hitbox->SetHiddenInGame(!bShowHitboxes);
+	}
+	AttachWeaponToSkeleton();
+}
+
+void AEAWCharacter::StartRagdoll()
+{
+	if (!bAnimated || GetMesh()->IsSimulatingPhysics())
+	{
+		return;
+	}
+	// Tiro no pescoco: a morte e a animacao com o jato arterial, nao o ragdoll.
+	if (bNeckDeath || bNeckDying)
+	{
+		StartNeckDeath();
+		return;
+	}
+	BeginDeathCommon();
 	// Limpa a fisica parcial do tronco e a trava de tempo antes de virar ragdoll (senao o corpo "voa").
 	CustomTimeDilation = 1.f;
 	if (HitReactAlpha > 0.f)
@@ -951,14 +1053,6 @@ void AEAWCharacter::StartRagdoll()
 	HitReactAlpha = 0.f;
 	GetMesh()->SetAllBodiesBelowPhysicsBlendWeight(TEXT("spine_01"), 1.f, false, true);
 	GetMesh()->AddImpulseToAllBodiesBelow(FallDir * 280.f + FVector(0.f, 0.f, -60.f), TEXT("spine_01"), true, true);
-	// A capsula nao pode segurar o proprio ragdoll (o quadril/pernas ficavam de pe).
-	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	// O corpo caiu: as hitboxes de pe nao podem continuar recebendo golpes no ar.
-	for (UCapsuleComponent* Hitbox : Hitboxes)
-	{
-		Hitbox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		Hitbox->SetHiddenInGame(true);
-	}
 	// Se o golpe que derrubou acabou de chegar, o membro atingido se solta agora.
 	TryDismember();
 }
@@ -1174,6 +1268,9 @@ void AEAWCharacter::ResetSoldier()
 	ClearGore();
 	WoundMarks = 0;
 	Firearm->ResetFirearm();
+	bDeathBegun = false;
+	bNeckDeath = false;
+	EndNeckDeath();
 	AttachWeaponToSkeleton();
 	if (bAnimated && GetMesh()->IsSimulatingPhysics())
 	{

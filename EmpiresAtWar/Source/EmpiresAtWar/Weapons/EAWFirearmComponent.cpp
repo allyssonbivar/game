@@ -1,4 +1,6 @@
 #include "Weapons/EAWFirearmComponent.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "EAWCharacter.h"
 #include "EmpiresAtWar.h"
 #include "Combat/BodyRegionLibrary.h"
@@ -230,7 +232,12 @@ void UEAWFirearmComponent::HandleBallHit(const FHitResult& Hit, const FVector& V
 	const FVector Dir = Velocity.GetSafeNormal();
 	if (Victim)
 	{
-		const EBodyRegion Region = UBodyRegionLibrary::RegionFromBone(Hit.BoneName);
+		EBodyRegion Region = UBodyRegionLibrary::RegionFromBone(Hit.BoneName);
+		// Teste: -EAWTestePescoco faz qualquer bala no soldado contar como tiro no pescoco.
+		if (FParse::Param(FCommandLine::Get(), TEXT("EAWTestePescoco")))
+		{
+			Region = EBodyRegion::Neck;
+		}
 		// Bala de chumbo de 17,5 mm: cabeca/pescoco mata; tronco com energia alta e ferimento mortal;
 		// bracos e pernas quebram/ferem (2o ferimento nao vital incapacita).
 		float Damage = 0.f;
@@ -243,6 +250,10 @@ void UEAWFirearmComponent::HandleBallHit(const FHitResult& Hit, const FVector& V
 		}
 		if (Victim->GetWounds() && Victim->GetWounds()->GetLife() != EWoundLife::Dead)
 		{
+			if (Region == EBodyRegion::Neck && Damage >= 200.f)
+			{
+				Victim->MarkNeckDeath();   // antes do dano: a morte vira a animacao com o jato arterial
+			}
 			Victim->GetWounds()->ApplyImpact(Region, Damage);
 		}
 		UE_LOG(LogEAWCombat, Log, TEXT("%s: bala acertou %s osso=%s regiao=%d a %.0f m/s (%.0f J), dano=%.0f, distancia=%.1f m"),

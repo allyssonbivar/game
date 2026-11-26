@@ -46,6 +46,8 @@ public:
 
 	UMeleeCombatComponent* GetCombat() const { return Combat; }
 	UWoundComponent* GetWounds() const { return Wounds; }
+	/** Servidor: a bala que vai matar acertou o pescoco (chamar antes de aplicar o dano). */
+	void MarkNeckDeath();
 
 	/** Trote normal (3,0 m/s; antes 1,4 - lento demais). As animacoes de trote foram feitas nessas velocidades. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movimento")
@@ -181,6 +183,20 @@ protected:
 	void PlaySegment(class UAnimSequence* Anim, float Start, float End, float Duration, bool bLoop, class UAnimSequence* FPAnim = nullptr);
 
 	void StartRagdoll();
+
+	// ---------- Morte por tiro no pescoco ----------
+	// Bala no pescoco: em vez do ragdoll, toca AS_Morte_Pescoco (Mixamo "Dying", transferida no Blender) e a arteria
+	// esguicha no ritmo do coracao. O servidor marca bNeckDeath antes do dano; o valor chega aos clientes no mesmo
+	// pacote do estado "fora de combate", entao todas as maquinas tocam a mesma morte.
+	UPROPERTY(ReplicatedUsing = OnRep_NeckDeath) bool bNeckDeath = false;
+	UFUNCTION() void OnRep_NeckDeath();
+	bool bNeckDying = false;
+	bool bDeathBegun = false;
+	void StartNeckDeath();
+	void EndNeckDeath();
+	/** Comum as duas mortes: a camera do dono, larga a arma, desliga capsula e hitboxes. */
+	void BeginDeathCommon();
+	UPROPERTY() class UAnimSequence* AnimMortePescoco = nullptr;
 
 	// ---------- Peso e fisica ----------
 	/** Giro maximo da camera (graus/s) durante preparacao e golpe - o golpe "compromete" o corpo. */
