@@ -158,7 +158,7 @@ void AEAWGameMode::HandleStartingNewPlayer_Implementation(APlayerController* New
 	}
 
 	// Testes automaticos: o mouse real (de quem esta usando o PC) nao mexe a camera.
-	if (NewPlayer && (FParse::Param(Cmd, TEXT("EAWAutoTiro")) || FParse::Param(Cmd, TEXT("EAWAutoPegar")) || FParse::Param(Cmd, TEXT("EAWAutoAndar")) || FParse::Param(Cmd, TEXT("EAWAutoAtaque")) || FParse::Param(Cmd, TEXT("EAWAutoEspecial"))))
+	if (NewPlayer && (FParse::Param(Cmd, TEXT("EAWAutoTiro")) || FParse::Param(Cmd, TEXT("EAWAutoPegar")) || FParse::Param(Cmd, TEXT("EAWAutoAndar")) || FParse::Param(Cmd, TEXT("EAWRoteiroMov")) || FParse::Param(Cmd, TEXT("EAWAutoAtaque")) || FParse::Param(Cmd, TEXT("EAWAutoEspecial"))))
 	{
 		NewPlayer->SetIgnoreLookInput(true);
 	}

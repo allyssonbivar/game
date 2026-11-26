@@ -69,6 +69,11 @@ public:
 	/** Parado, o corpo so vira os pes quando a mira passa deste angulo (ate la o tronco torce). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movimento")
 	float TurnInPlaceAngle = 70.f;
+	/** Giro do corpo com aceleracao (graus/s e graus/s^2): comeca e para suave, sem o tronco inverter de repente. */
+	float TurnRateNow = 0.f;
+	float TurnAccel = 1800.f;
+	/** Teclas de andar deste quadro: juntas viram uma direcao so (diagonal na velocidade certa). */
+	float AxisForward = 0.f, AxisRight = 0.f;
 
 	virtual void Landed(const FHitResult& Hit) override;
 
@@ -126,6 +131,7 @@ protected:
 	void StartSprint();
 	/** C ou Ctrl: agacha/levanta. So com mosquete (modo tiro) ou pistola; correr, pular ou trocar para arma branca levanta. */
 	void InputCrouch();
+	void ComposeMoveInput();
 	virtual void OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
 	virtual void OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
 	void InputJump();
@@ -184,6 +190,8 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Animacao|Movimento") class UAnimSequence* AnimAndarTras = nullptr;
 	UPROPERTY(EditAnywhere, Category = "Animacao|Movimento") class UAnimSequence* AnimAndarEsq = nullptr;
 	UPROPERTY(EditAnywhere, Category = "Animacao|Movimento") class UAnimSequence* AnimAndarDir = nullptr;
+	// Trote nas diagonais (2026-11-26): frente-dir, frente-esq, tras-dir, tras-esq.
+	UPROPERTY() class UAnimSequence* AnimTroteDiag[4] = { nullptr, nullptr, nullptr, nullptr };
 	UPROPERTY(EditAnywhere, Category = "Animacao|Movimento") class UAnimSequence* AnimCorrer = nullptr;
 
 	// Versoes de 1a pessoa (bracos presos a camera). Se faltar, os bracos usam a de corpo inteiro.

@@ -68,3 +68,7 @@ atualizado: 2026-11-26
 - [ ] Agachar com arma branca: decidir depois de estudar o Chivalry
 - [ ] Ver a defesa alta da baioneta em jogo (bots só estocam) e talvez bots usarem E/C com o mosquete
 - [ ] Hitboxes agachado: as caixas descem junto, mas a das pernas fica parte abaixo do chão (ajustar se atrapalhar)
+- [x] Combate fase 1 — movimento suave (8 direções, molas, freada, giro) (2026-11-26)
+- [ ] Combate fase 2 — ataques: golpe correndo (investida), golpe de salto, chute/empurrão (sem escudo)
+- [ ] Combate fase 3 — defesa andando/correndo e transições suaves entre golpes
+- [ ] Combate fase 4 — combos por sequência de cliques (sem mexer no golpe especial)

@@ -154,3 +154,4 @@ Capturas a cada 0,2–0,3 s com `-EAWDuelo`; cortes forçados com `-EAWTesteCort
 | Agachado (câmera lateral) | ✔ anda agachado com o mosquete pronto; mira, tiro e recarga agachado com as mãos na arma |
 | Fumaça nova (1ª pessoa) | ✔ nuvem enche a tela no tiro, fica ~9 s e some devagar; sem as linhas no chão (bug #62) |
 | Agachar em rede (2 janelas) | ✔ cliente agachou → servidor recebeu |
+| Roteiro de movimento (fase 1, 60 qps) | ✔ ponta da arma p95 2.854 → 1.922; inverter para trás 8.345 → 1.553; escorregão na diagonal ~160 → ~58 cm/s |

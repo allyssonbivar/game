@@ -18,6 +18,8 @@
 #include "Net/UnrealNetwork.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Misc/Paths.h"
+#include "HAL/FileManager.h"
 #include "GameFramework/PlayerController.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
@@ -49,8 +51,11 @@ AEAWCharacter::AEAWCharacter()
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
 	// Arranque e freada rapidos (~0,15 s), como no Chivalry; o peso vem da camera, da arma e do giro do corpo.
 	GetCharacterMovement()->MaxAcceleration = 1800.f;
-	GetCharacterMovement()->BrakingDecelerationWalking = 1600.f;
+	// Freada ~0,15 s (antes 0,07 s: parava "de estalo" e o corpo dava um tranco). Atrito separado so para frear.
+	GetCharacterMovement()->BrakingDecelerationWalking = 1150.f;
 	GetCharacterMovement()->GroundFriction = 8.f;
+	GetCharacterMovement()->bUseSeparateBrakingFriction = true;
+	GetCharacterMovement()->BrakingFriction = 2.f;
 	GetCharacterMovement()->AirControl = 0.15f;
 	GetCharacterMovement()->JumpZVelocity = 380.f;
 	// Agachar: a capsula encolhe 30 cm (a camera desce junto) e o quadril da animacao desce os mesmos 30 cm.
@@ -130,6 +135,13 @@ AEAWCharacter::AEAWCharacter()
 	static ConstructorHelpers::FObjectFinderOptional<UAnimSequence> M_Dir(TEXT("/Game/Personagem/AS_Trote_Dir.AS_Trote_Dir"));
 	static ConstructorHelpers::FObjectFinderOptional<UAnimSequence> M_Correr(TEXT("/Game/Personagem/AS_Sabre_Correr.AS_Sabre_Correr"));
 	AnimAndarFrente = M_Frente.Get(); AnimAndarTras = M_Tras.Get(); AnimAndarEsq = M_Esq.Get(); AnimAndarDir = M_Dir.Get(); AnimCorrer = M_Correr.Get();
+	{
+		static ConstructorHelpers::FObjectFinderOptional<UAnimSequence> D0(TEXT("/Game/Personagem/AS_Trote_FrenteDir.AS_Trote_FrenteDir"));
+		static ConstructorHelpers::FObjectFinderOptional<UAnimSequence> D1(TEXT("/Game/Personagem/AS_Trote_FrenteEsq.AS_Trote_FrenteEsq"));
+		static ConstructorHelpers::FObjectFinderOptional<UAnimSequence> D2(TEXT("/Game/Personagem/AS_Trote_TrasDir.AS_Trote_TrasDir"));
+		static ConstructorHelpers::FObjectFinderOptional<UAnimSequence> D3(TEXT("/Game/Personagem/AS_Trote_TrasEsq.AS_Trote_TrasEsq"));
+		AnimTroteDiag[0] = D0.Get(); AnimTroteDiag[1] = D1.Get(); AnimTroteDiag[2] = D2.Get(); AnimTroteDiag[3] = D3.Get();
+	}
 	static ConstructorHelpers::FObjectFinderOptional<USkeletalMesh> P_Cabeca(TEXT("/Game/Personagem/Pecas/SK_Peca_Cabeca.SK_Peca_Cabeca"));
 	static ConstructorHelpers::FObjectFinderOptional<USkeletalMesh> P_BracoE(TEXT("/Game/Personagem/Pecas/SK_Peca_BracoE.SK_Peca_BracoE"));
 	static ConstructorHelpers::FObjectFinderOptional<USkeletalMesh> P_BracoD(TEXT("/Game/Personagem/Pecas/SK_Peca_BracoD.SK_Peca_BracoD"));
@@ -280,6 +292,10 @@ if (FParse::Param(FCommandLine::Get(), TEXT("EAWDiagBala")))	{		for (USkeletalMe
 		AnimLayers->SpeedSide = WalkSpeed * SideSpeedScale; AnimLayers->SpeedRun = SprintSpeed;
 		AnimLayers->WalkCycle = 19.f / 30.f;   // trote: ciclo de 19 quadros nas 4 direcoes
 		AnimLayers->CrouchIdle = AnimAgachadoParado;
+		for (int32 k = 0; k < 4; ++k) { AnimLayers->WalkDiag[k] = AnimTroteDiag[k]; }
+		// Velocidade das diagonais com a elipse de velocidades (frente 1, lado SideSpeedScale, tras BackSpeedScale) a 45 graus.
+		AnimLayers->SpeedDiagFwd = WalkSpeed / FMath::Sqrt(0.5f + 0.5f / FMath::Square(SideSpeedScale));
+		AnimLayers->SpeedDiagBack = WalkSpeed / FMath::Sqrt(0.5f / FMath::Square(BackSpeedScale) + 0.5f / FMath::Square(SideSpeedScale));
 		AnimLayers->CrouchWalk[0] = AnimAgachadoFrente; AnimLayers->CrouchWalk[1] = AnimAgachadoTras;
 		AnimLayers->CrouchWalk[2] = AnimAgachadoEsq; AnimLayers->CrouchWalk[3] = AnimAgachadoDir;
 	}
@@ -356,7 +372,51 @@ void AEAWCharacter::Tick(float DeltaSeconds)
 		else if (T < 3.5f) MoveForward(-1.f);
 		else if (T < 4.3f) Controller->SetControlRotation(Controller->GetControlRotation() + FRotator(0.f, 150.f * DeltaSeconds, 0.f));
 	}
+	// Teste -EAWRoteiroMov: roteiro fixo de 14 s para medir a suavidade (partir, parar, diagonais, inverter, virar no lugar,
+	// andar virando). Com -EAWDiagMov grava por quadro pes/maos/arma em Saved/Logs/diagmov.csv.
+	static const bool bRoute = FParse::Param(FCommandLine::Get(), TEXT("EAWRoteiroMov"));
+	if (bRoute && IsLocallyControlled() && IsPlayerControlled() && Controller)
+	{
+		AutoWalkTime += DeltaSeconds;
+		const float T = FMath::Fmod(AutoWalkTime, 14.f);
+		auto Turn = [&](float DegPerSec) { Controller->SetControlRotation(Controller->GetControlRotation() + FRotator(0.f, DegPerSec * DeltaSeconds, 0.f)); };
+		if (T < 1.5f) { MoveForward(1.f); }
+		else if (T < 2.3f) {}
+		else if (T < 3.8f) { MoveForward(1.f); MoveRight(1.f); }
+		else if (T < 4.6f) {}
+		else if (T < 6.1f) { MoveForward(-1.f); MoveRight(-1.f); }
+		else if (T < 7.1f) { MoveRight(-1.f); }
+		else if (T < 8.4f) { MoveRight(1.f); }
+		else if (T < 9.2f) {}
+		else if (T < 10.0f) { Turn(112.f); }
+		else if (T < 11.0f) {}
+		else if (T < 12.5f) { MoveForward(1.f); Turn(60.f); }
+		else if (T < 13.3f) { MoveForward(-1.f); }
+	}
+	static const bool bDiagMov = FParse::Param(FCommandLine::Get(), TEXT("EAWDiagMov"));
+	if (bDiagMov && IsLocallyControlled() && IsPlayerControlled() && bAnimated)
+	{
+		static FArchive* Csv = nullptr;
+		if (!Csv)
+		{
+			GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+			Csv = IFileManager::Get().CreateFileWriter(*(FPaths::ProjectLogDir() / TEXT("diagmov.csv")));
+			const FString H = TEXT("t,route,speed,vx,vy,yaw,flx,fly,flz,frx,fry,frz,hx,hy,hz,tx,ty,tz,px,py,pz,headx,heady,headz\n");
+			Csv->Serialize(TCHAR_TO_ANSI(*H), H.Len());
+		}
+		const FTransform C = GetMesh()->GetComponentTransform();
+		auto W = [&](const TCHAR* B) { return GetMesh()->GetSocketLocation(B); };
+		auto L = [&](const TCHAR* B) { return C.InverseTransformPosition(GetMesh()->GetSocketLocation(B)); };
+		const FVector V = GetActorTransform().InverseTransformVectorNoScale(GetVelocity());
+		const FVector FL = W(TEXT("ball_l")), FR = W(TEXT("ball_r")), H = L(TEXT("hand_r")), Tip = L(TEXT("weapon_r_tip")), P = L(TEXT("pelvis")), Hd = L(TEXT("head"));
+		const FString Line = FString::Printf(TEXT("%.4f,%.3f,%.1f,%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f\n"),
+			GetWorld()->GetTimeSeconds(), FMath::Fmod(AutoWalkTime, 14.f), GetVelocity().Size2D(), V.X, V.Y, GetActorRotation().Yaw,
+			FL.X, FL.Y, FL.Z, FR.X, FR.Y, FR.Z, H.X, H.Y, H.Z, Tip.X, Tip.Y, Tip.Z, P.X, P.Y, P.Z, Hd.X, Hd.Y, Hd.Z);
+		Csv->Serialize(TCHAR_TO_ANSI(*Line), Line.Len());
+		Csv->Flush();
+	}
 
+	ComposeMoveInput();
 	ApplyMovementSpeed();
 	UpdateFeel(DeltaSeconds);
 	UpdateFirearmView(DeltaSeconds);
@@ -418,8 +478,7 @@ void AEAWCharacter::MoveForward(float Value)
 	if (Value != 0.f && Wounds->CanFight())
 	{
 		// Frente = para onde a camera olha (o corpo vira atras). Para tras e mais lento.
-		const FRotator Yaw(0.f, GetControlRotation().Yaw, 0.f);
-		AddMovementInput(Yaw.Vector(), Value < 0.f ? Value * BackSpeedScale : Value);
+		AxisForward = FMath::Clamp(AxisForward + Value, -1.f, 1.f);   // a direcao e montada no Tick (ComposeMoveInput)
 	}
 }
 
@@ -427,9 +486,26 @@ void AEAWCharacter::MoveRight(float Value)
 {
 	if (Value != 0.f && Wounds->CanFight())
 	{
-		const FRotator Yaw(0.f, GetControlRotation().Yaw, 0.f);
-		AddMovementInput(FRotationMatrix(Yaw).GetUnitAxis(EAxis::Y), Value * SideSpeedScale);
+		AxisRight = FMath::Clamp(AxisRight + Value, -1.f, 1.f);
 	}
+}
+
+void AEAWCharacter::ComposeMoveInput()
+{
+	// Frente/tras + lados viram UMA direcao, com velocidade da elipse (frente 1, lado SideSpeedScale, tras BackSpeedScale).
+	// Antes cada tecla somava e o limite cortava depois: na diagonal para tras andava ~300 cm/s (mais que para tras, 195).
+	const FVector2D In(AxisForward, AxisRight);
+	AxisForward = AxisRight = 0.f;
+	const float Mag = FMath::Min(1.f, In.Size());
+	if (Mag < KINDA_SMALL_NUMBER)
+	{
+		return;
+	}
+	const FVector2D D = In / In.Size();
+	const float A = D.X >= 0.f ? 1.f : BackSpeedScale;
+	const float Scale = 1.f / FMath::Sqrt(FMath::Square(D.X / A) + FMath::Square(D.Y / SideSpeedScale));
+	const FRotator Yaw(0.f, GetControlRotation().Yaw, 0.f);
+	AddMovementInput(Yaw.RotateVector(FVector(D.X, D.Y, 0.f)), Scale * Mag);
 }
 
 bool AEAWCharacter::CanCrouchWithWeapon() const
@@ -1985,8 +2061,12 @@ void AEAWCharacter::UpdateBodyTurn(float Dt)
 	}
 	const bool bFollow = bMoving || bBusy || bTurnInPlace;
 	Move->bUseControllerDesiredRotation = bFollow;
-	// Virar no lugar e mais calmo (passinhos); andando/lutando, rapido.
-	Move->RotationRate = FRotator(0.f, bTurnInPlace ? 320.f : 540.f, 0.f);
+	// Virar no lugar e mais calmo (passinhos); andando/lutando, rapido. O giro acelera e freia (antes comecava ja em
+	// 320-540 graus/s: o tronco, que vinha torcendo, invertia num quadro - o maior "pulo" medido no roteiro de movimento).
+	const float MaxRate = bTurnInPlace ? 320.f : 540.f;
+	const float Brake = FMath::Sqrt(2.f * TurnAccel * FMath::Abs(Delta));   // freia a tempo de parar no alvo
+	TurnRateNow = bFollow ? FMath::Min3(TurnRateNow + TurnAccel * Dt, MaxRate, FMath::Max(40.f, Brake)) : 0.f;
+	Move->RotationRate = FRotator(0.f, TurnRateNow, 0.f);
 }
 
 void AEAWCharacter::Landed(const FHitResult& Hit)

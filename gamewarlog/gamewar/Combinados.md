@@ -23,3 +23,9 @@ atualizado: 2026-11-26
 ## Baioneta e agachar (decisão do usuário, 2026-11-26)
 - Combate da baioneta **como no vídeo `Modelos\ex\x1.mp4` em 3ª pessoa**: guarda com o mosquete na diagonal do peito, estocada da cintura, defesas alta (horizontal sobre a cabeça) e laterais (mosquete em pé). **O golpe especial não muda.**
 - **Agachar e andar agachado só com pistolas e mosquetes/rifles** (modo tiro). Arma branca agachada: o usuário ainda vai estudar como o Chivalry faz.
+
+## Melhoria do combate (decisão do usuário, 2026-11-26)
+- Ordem: **1) movimento → 2) ataques → 3) defesas → 4) combos**. Foco em **suavidade**. Só o combate corpo a corpo.
+- **Sem escudo** no jogo.
+- **O golpe especial ("combo da força": segurar o botão esquerdo 3 s + W) não muda.**
+- Combos por sequência simples de cliques (ex.: 2 cliques, 3 cliques, cliques + uma tecla) — escolher o mais fácil para o jogador.

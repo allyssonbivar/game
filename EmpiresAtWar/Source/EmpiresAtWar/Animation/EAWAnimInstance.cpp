@@ -8,6 +8,17 @@
 
 namespace
 {
+	/** Mola critica (solucao exata): X segue Target sem passar e sem tranco no comeco nem no fim. Omega maior = mais rapida
+	 *  (chega a ~95% em ~4,7/Omega s). Substitui o FInterpTo, que comeca na velocidade maxima (o "pulo" medido ao partir/parar). */
+	void SpringTo(float& X, float& V, float Target, float Omega, float Dt)
+	{
+		const float E = FMath::Exp(-Omega * Dt);
+		const float Change = X - Target;
+		const float Temp = (V + Omega * Change) * Dt;
+		V = (V - Omega * Temp) * E;
+		X = Target + (Change + Temp) * E;
+	}
+
 	void SamplePose(UAnimSequence* Anim, float Time, FPoseContext& Ctx)
 	{
 		if (Anim)
@@ -99,7 +110,10 @@ void UEAWAnimInstance::TickValues(float Dt, FEAWAnimFrame& Out)
 	{
 		const float ActorYaw = Pawn->GetActorRotation().Yaw;
 		const float AimWorldYaw = Pawn->Controller ? Pawn->GetControlRotation().Yaw : Pawn->GetBaseAimRotation().Yaw;
-		AimYaw = FMath::Clamp(FRotator::NormalizeAxis(AimWorldYaw - ActorYaw), -90.f, 90.f);
+		// O tronco segue a mira com uma mola curta (~0,13 s): quando o mouse para ou comeca, a torcao nao inverte num quadro.
+		const float AimTarget = FMath::Clamp(FRotator::NormalizeAxis(AimWorldYaw - ActorYaw), -90.f, 90.f);
+		SpringTo(AimYawSmooth, AimYawVel, AimTarget, 35.f, Dt);   // 35: atraso pequeno (6 graus a 100 graus/s) - o golpe segue a mira
+		AimYaw = FMath::Clamp(AimYawSmooth, -90.f, 90.f);
 		if (bHavePrevYaw && Dt > 0.f)
 		{
 			YawRate = FRotator::NormalizeAxis(ActorYaw - PrevActorYaw) / Dt;
@@ -115,27 +129,59 @@ void UEAWAnimInstance::TickValues(float Dt, FEAWAnimFrame& Out)
 		Speed = Step;
 	}
 
-	// Pesos das 4 direcoes (frente, tras, esquerda, direita).
+	// 8 direcoes por angulo (0 = frente, 90 = direita): mistura so as duas vizinhas, com troca suave.
+	// Antes eram 4 direcoes somadas por componente: a diagonal misturava frente + lado e o pe escorregava ~1,5 m/s.
+	const bool bStarting = LocoWeight < 0.02f && Speed > 5.f;
 	if (Speed > 5.f)
 	{
-		const FVector D = Local / Speed;
-		float W[4] = { FMath::Max(0.f, D.X), FMath::Max(0.f, -D.X), FMath::Max(0.f, -D.Y), FMath::Max(0.f, D.Y) };
-		const float Sum = W[0] + W[1] + W[2] + W[3];
-		for (int32 i = 0; i < 4; ++i)
+		float Ang = FMath::RadiansToDegrees(FMath::Atan2(Local.Y, Local.X));
+		if (Ang < 0.f) Ang += 360.f;
+		const int32 I0 = FMath::FloorToInt(Ang / 45.f) % 8;
+		const int32 I1 = (I0 + 1) % 8;
+		const float Frac = Ang / 45.f - FMath::FloorToFloat(Ang / 45.f);
+		float W[8] = { 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f };
+		W[I0] = 1.f - Frac; W[I1] += Frac;
+		for (int32 i = 0; i < 8; ++i)
 		{
-			DirW[i] = FMath::FInterpTo(DirW[i], W[i] / Sum, Dt, 12.f);
+			// Partindo do parado: ja comeca na direcao certa (nao "gira" as pernas a partir da frente).
+			if (bStarting) { DirW[i] = W[i]; DirWVel[i] = 0.f; }
+			else { SpringTo(DirW[i], DirWVel[i], W[i], 11.f, Dt); DirW[i] = FMath::Max(0.f, DirW[i]); }
+		}
+	}
+	// Sem a animacao da diagonal, o peso vai metade para cada vizinha.
+	float W8[8];
+	for (int32 i = 0; i < 8; ++i) W8[i] = DirW[i];
+	const int32 DiagIdx[4] = { 1, 7, 3, 5 };   // FD, FE, TD, TE
+	for (int32 k = 0; k < 4; ++k)
+	{
+		if (!WalkDiag[k])
+		{
+			const int32 i = DiagIdx[k];
+			W8[(i + 7) % 8] += W8[i] * 0.5f; W8[(i + 1) % 8] += W8[i] * 0.5f; W8[i] = 0.f;
 		}
 	}
 
 	// Passo sincronizado: a fase anda na proporcao da velocidade real / velocidade da animacao.
-	const float Natural = FMath::Max(1.f, DirW[0] * SpeedForward + DirW[1] * SpeedBack + (DirW[2] + DirW[3]) * SpeedSide);
+	const float Speed8[8] = { SpeedForward, SpeedDiagFwd, SpeedSide, SpeedDiagBack, SpeedBack, SpeedDiagBack, SpeedSide, SpeedDiagFwd };
+	float Natural = 0.f;
+	for (int32 i = 0; i < 8; ++i) Natural += W8[i] * Speed8[i];
+	Natural = FMath::Max(1.f, Natural);
+	if (bStarting)
+	{
+		// Comeca o passo com o pe direito a frente, como na guarda (sem trocar os pes no primeiro quadro).
+		WalkPhase = 0.5f;
+	}
 	WalkPhase = FMath::Fmod(WalkPhase + Dt * (Speed / Natural) / WalkCycle, 1.f);
 	RunPhase = FMath::Fmod(RunPhase + Dt * (Speed / SpeedRun) / RunCycle, 1.f);
 
-	LocoWeight = FMath::FInterpTo(LocoWeight, FMath::Clamp(Speed / 40.f, 0.f, 1.f), Dt, 10.f);
+	SpringTo(LocoWeight, LocoWeightVel, FMath::Clamp(Speed / 40.f, 0.f, 1.f), 13.f, Dt);
+	LocoWeight = FMath::Clamp(LocoWeight, 0.f, 1.f);
 	// Agachado: desce/sobe em 0,25 s; o passo agachado sincroniza com a velocidade como o andar.
 	CrouchWeight = FMath::FInterpConstantTo(CrouchWeight, (bCrouched && CrouchIdle) ? 1.f : 0.f, Dt, 4.f);
-	const float CrouchNatural = FMath::Max(1.f, DirW[0] * CrouchSpeedForward + DirW[1] * CrouchSpeedBack + (DirW[2] + DirW[3]) * CrouchSpeedSide);
+	// Agachado tem 4 direcoes: F, T, E, D (as diagonais se dividem entre as vizinhas).
+	const float CW[4] = { DirW[0] + 0.5f * (DirW[1] + DirW[7]), DirW[4] + 0.5f * (DirW[3] + DirW[5]),
+		DirW[6] + 0.5f * (DirW[5] + DirW[7]), DirW[2] + 0.5f * (DirW[1] + DirW[3]) };
+	const float CrouchNatural = FMath::Max(1.f, CW[0] * CrouchSpeedForward + CW[1] * CrouchSpeedBack + (CW[2] + CW[3]) * CrouchSpeedSide);
 	CrouchPhase = FMath::Fmod(CrouchPhase + Dt * (Speed / CrouchNatural) / CrouchCycle, 1.f);
 	CrouchIdleTime += Dt;
 	if (CrouchIdle && CrouchIdle->SequenceLength > 0.f)
@@ -152,10 +198,14 @@ void UEAWAnimInstance::TickValues(float Dt, FEAWAnimFrame& Out)
 	Out.PrevTime = PrevSegTime;
 	Out.PrevBlend = PrevBlend;
 	Out.Loco[0] = WalkForward; Out.Loco[1] = WalkBack; Out.Loco[2] = WalkLeft; Out.Loco[3] = WalkRight; Out.Loco[4] = Run;
-	for (int32 i = 0; i < 4; ++i)
+	Out.LocoW[0] = W8[0]; Out.LocoW[1] = W8[4]; Out.LocoW[2] = W8[6]; Out.LocoW[3] = W8[2];
+	for (int32 k = 0; k < 4; ++k)
 	{
-		Out.LocoW[i] = DirW[i];
+		Out.Diag[k] = WalkDiag[k];
+		Out.DiagW[k] = W8[DiagIdx[k]];
+		Out.CrouchW[k] = CW[k];
 	}
+	Out.WalkPhase01 = WalkPhase;
 	Out.WalkTime = WalkPhase * WalkCycle;
 	Out.RunTime = RunPhase * RunCycle;
 	Out.LocoWeight = LocoWeight;
@@ -231,22 +281,24 @@ bool FEAWAnimProxy::Evaluate(FPoseContext& Output)
 	{
 		float Acc = 0.f;
 		bool bFirst = true;
-		for (int32 i = 0; i < 4; ++i)
+		for (int32 i = 0; i < 8; ++i)
 		{
-			const float W = Data.LocoW[i];
-			if (W < 0.01f || !Data.Loco[i])
+			UAnimSequence* A = i < 4 ? Data.Loco[i] : Data.Diag[i - 4];
+			const float W = i < 4 ? Data.LocoW[i] : Data.DiagW[i - 4];
+			if (W < 0.01f || !A)
 			{
 				continue;
 			}
+			const float Time = Data.WalkPhase01 * A->SequenceLength;
 			if (bFirst)
 			{
-				SamplePose(Data.Loco[i], Data.WalkTime, LocoPose);
+				SamplePose(A, Time, LocoPose);
 				bFirst = false;
 				Acc = W;
 				continue;
 			}
 			FPoseContext P(this);
-			SamplePose(Data.Loco[i], Data.WalkTime, P);
+			SamplePose(A, Time, P);
 			Acc += W;
 			LerpPose(LocoPose.Pose, P.Pose, W / Acc);
 		}
@@ -288,7 +340,7 @@ bool FEAWAnimProxy::Evaluate(FPoseContext& Output)
 			float Acc = 0.f;
 			for (int32 i = 0; i < 4; ++i)
 			{
-				const float W = Data.LocoW[i];
+				const float W = Data.CrouchW[i];
 				if (W < 0.01f || !Data.CrouchWalk[i]) continue;
 				if (Acc <= 0.f)
 				{

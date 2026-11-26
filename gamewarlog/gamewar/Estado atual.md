@@ -204,3 +204,14 @@ Referência: `Modelos\ex\x1.mp4` (vídeo do Holdfast em 3ª pessoa, fora do Git)
   - Rede: agachar replica pelo movimento do personagem da Unreal (testado: cliente agachou, servidor recebeu).
 - **Fumaça (vídeo x1):** 30 jatos + 10 rolos + **9 flocos grandes de "corpo" da nuvem** (nascem 0,6–3 m à frente e incham até 1,3–1,8 m de raio); cresce sempre (difusão), fica **densa ~1/3 da vida e some devagar**: dura **9–15 s** (antes 5–7 s); sobe 14 cm/s com o vento. Textura `T_Fumaca` mais lisa (menos chuvisco) e borda suave no chão de 2,2 m no `M_Fumaca_Sprite` (bug #62).
 - Testes novos: `-EAWAgachado` (seu soldado fica agachado; com `-EAWAutoAndar` anda agachado, com `-EAWAutoTiro` atira e recarrega agachado), `-EAWCamJogador` (com `-EAWCamBot=N`: a câmera lateral olha para o seu soldado).
+
+## Combate — fase 1: movimento suave (2026-11-26) ✔ medido com o roteiro de teste
+Referência: vídeos `Modelos\ex\baseMove/ataqueOnehand/thohamds.mp4` (pacote pago de animações — só estudo; tudo feito do zero). Ver [[Referência - movimento e combate (primeira fase)]].
+- **8 direções:** trote novo nas diagonais (`AS_Trote_FrenteDir/FrenteEsq/TrasDir/TrasEsq`, 19 quadros, 2,55 e 2,08 m/s). O animador mistura só as **duas direções vizinhas pelo ângulo** (antes somava frente + lado e o pé escorregava ~1,5 m/s na diagonal).
+- **Velocidade na diagonal certa:** as teclas viram uma direção só com a "elipse" de velocidades (frente 3,0 · lado 2,25 · trás 1,95 m/s; diagonal frente 2,55, diagonal trás 2,08). Antes a diagonal para trás andava ~3,0 m/s (mais que para trás).
+- **Molas críticas** (começam e terminam com velocidade zero) no peso do andar, na troca de direção e na torção do tronco (o tronco segue a mira ~0,13 s atrás, 6° a 100°/s). Antes era "aproxima exponencial", que começa no máximo → tranco ao partir/parar.
+- **Partir:** o passo começa com o pé direito à frente, como na guarda, já na direção certa.
+- **Parar:** freada ~0,15 s (antes 0,07 s, "de estalo").
+- **Virar:** o giro do corpo acelera e freia (1.800°/s²) em vez de começar já a 320–540°/s.
+- **Medição (roteiro de 14 s, 60 qps, aceleração da ponta da arma, p95):** média 2.854 → 1.922; inverter para trás 8.345 → 1.553; mão 1.711 → 1.303; cabeça 1.231 → 974. Escorregão do pé na diagonal: 166/137 → ~59/57 cm/s.
+- Testes: `-EAWRoteiroMov` (roteiro fixo: partir, parar, diagonais, inverter, virar no lugar, andar virando) + `-EAWDiagMov` (grava `Saved\Logs\diagmov.csv`). Análise: scripts `mov_test.sh` / `mov_analyze.py` (pasta temporária da sessão; a receita está aqui).
