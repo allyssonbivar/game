@@ -31,3 +31,7 @@ atualizado: 2026-11-26
 - Combos por sequência simples de cliques (ex.: 2 cliques, 3 cliques, cliques + uma tecla) — escolher o mais fácil para o jogador.
 - **Combos (2026-11-26):** 2 cliques = dois cortes; 3 cliques = golpe final de cima; 2 cliques + E = estocada final.
 - Toda mudança de movimento/animação: conferir de novo o golpe especial (`-EAWAutoEspecial`), que não pode mudar (bug #70).
+
+## Fardas (2026-11-26)
+- `Modelos\ex\Textures` e `Modelos\ex\Meshes` são arquivos **extraídos do Holdfast** → **só referência visual** (como o Chivalry 2). As fardas do jogo são feitas do zero por script; nenhuma malha ou textura deles entra no projeto.
+- Toda mudança nas fardas: rodar de novo `teste_colisao.py` e conferir o golpe especial (150/160).

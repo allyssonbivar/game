@@ -152,11 +152,29 @@ AEAWCharacter::AEAWCharacter()
 	static ConstructorHelpers::FObjectFinderOptional<UMaterialInterface> P_CapMat(TEXT("/Game/Efeitos/M_Sangue.M_Sangue"));
 	PecaCabeca = P_Cabeca.Get(); PecaBracoE = P_BracoE.Get(); PecaBracoD = P_BracoD.Get();
 	PecaPernaE = P_PernaE.Get(); PecaPernaD = P_PernaD.Get(); CapMesh = P_Cap.Get(); CapMaterial = P_CapMat.Get();
+	{
+		// Fardas (Modelos/fardas -> Scripts/import_fardas.py). Sem elas, fica o manequim SK_Soldado.
+		static ConstructorHelpers::FObjectFinderOptional<USkeletalMesh> NFR(TEXT("/Game/Personagem/Fardas/SK_Soldado_FR.SK_Soldado_FR"));
+		static ConstructorHelpers::FObjectFinderOptional<USkeletalMesh> NGB(TEXT("/Game/Personagem/Fardas/SK_Soldado_GB.SK_Soldado_GB"));
+		MeshNacao[0] = NFR.Get(); MeshNacao[1] = NGB.Get();
+#define EAW_PECA(I, Path) { static ConstructorHelpers::FObjectFinderOptional<USkeletalMesh> F(TEXT(Path)); PecasNacao[I] = F.Get(); }
+		EAW_PECA(0, "/Game/Personagem/Fardas/Pecas/SK_Peca_FR_Cabeca.SK_Peca_FR_Cabeca");
+		EAW_PECA(1, "/Game/Personagem/Fardas/Pecas/SK_Peca_FR_BracoE.SK_Peca_FR_BracoE");
+		EAW_PECA(2, "/Game/Personagem/Fardas/Pecas/SK_Peca_FR_BracoD.SK_Peca_FR_BracoD");
+		EAW_PECA(3, "/Game/Personagem/Fardas/Pecas/SK_Peca_FR_PernaE.SK_Peca_FR_PernaE");
+		EAW_PECA(4, "/Game/Personagem/Fardas/Pecas/SK_Peca_FR_PernaD.SK_Peca_FR_PernaD");
+		EAW_PECA(5, "/Game/Personagem/Fardas/Pecas/SK_Peca_GB_Cabeca.SK_Peca_GB_Cabeca");
+		EAW_PECA(6, "/Game/Personagem/Fardas/Pecas/SK_Peca_GB_BracoE.SK_Peca_GB_BracoE");
+		EAW_PECA(7, "/Game/Personagem/Fardas/Pecas/SK_Peca_GB_BracoD.SK_Peca_GB_BracoD");
+		EAW_PECA(8, "/Game/Personagem/Fardas/Pecas/SK_Peca_GB_PernaE.SK_Peca_GB_PernaE");
+		EAW_PECA(9, "/Game/Personagem/Fardas/Pecas/SK_Peca_GB_PernaD.SK_Peca_GB_PernaD");
+#undef EAW_PECA
+	}
 	AnimGuarda = A_Guarda.Object; AnimCorteEsq = A_CorteEsq.Object; AnimCorteDir = A_CorteDir.Object; AnimDeCima = A_DeCima.Object;
 	AnimEstocada = A_Estocada.Object; AnimParry = A_Parry.Object; AnimBloqueado = A_Bloqueado.Object; AnimFinta = A_Finta.Object;
 	if (SoldierMesh.Succeeded())
 	{
-		GetMesh()->SetSkeletalMesh(SoldierMesh.Object);
+		GetMesh()->SetSkeletalMesh(MeshNacao[0] ? MeshNacao[0] : SoldierMesh.Object);
 		// O FBX chega olhando para +Y e com os pes na origem.
 		GetMesh()->SetRelativeLocationAndRotation(FVector(0.f, 0.f, -88.f), FRotator(0.f, -90.f, 0.f));
 		GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
@@ -175,7 +193,7 @@ AEAWCharacter::AEAWCharacter()
 	FirstPersonMesh->SetComponentTickEnabled(false);
 	if (SoldierMesh.Succeeded())
 	{
-		FirstPersonMesh->SetSkeletalMesh(SoldierMesh.Object);
+		FirstPersonMesh->SetSkeletalMesh(MeshNacao[0] ? MeshNacao[0] : SoldierMesh.Object);
 	}
 
 	Combat = CreateDefaultSubobject<UMeleeCombatComponent>(TEXT("Combat"));
@@ -274,6 +292,7 @@ void AEAWCharacter::BeginPlay()
 	{
 		AEAWGameMode::SpawnTestField(GetWorld());   // o cliente nao tem GameMode: cria o chao de teste localmente
 	}
+	AplicarNacao();   // o GameMode ja definiu a nacao (spawn adiado); nos clientes chegou junto com o ator
 	Combat->SetWeaponPivot(WeaponPivot);
 	Wounds->OnWounded.AddDynamic(this, &AEAWCharacter::HandleWounded);
 	Combat->OnImpact.AddDynamic(this, &AEAWCharacter::HandleImpact);
@@ -343,6 +362,7 @@ void AEAWCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 	DOREPLIFETIME(AEAWCharacter, CurrentWeapon);
 	DOREPLIFETIME(AEAWCharacter, bBayonet);
 	DOREPLIFETIME(AEAWCharacter, DeathAnimKind);
+	DOREPLIFETIME(AEAWCharacter, Nacao);
 	DOREPLIFETIME(AEAWCharacter, PrimaryWeapon);
 	DOREPLIFETIME(AEAWCharacter, SecondaryWeapon);
 }
@@ -1383,6 +1403,51 @@ void AEAWCharacter::EndPlay(const EEndPlayReason::Type Reason)
 {
 	AEAWBloodFX::ClearStainsOf(this);   // o sangue deste soldado some quando ele sai do jogo / renasce
 	Super::EndPlay(Reason);
+}
+
+uint8 AEAWCharacter::NacaoPorNome(const FString& Nome, uint8 Padrao)
+{
+	const FString N = Nome.ToUpper();
+	if (N.StartsWith(TEXT("FR"))) return 0;
+	if (N.StartsWith(TEXT("GB")) || N.StartsWith(TEXT("BR")) || N.StartsWith(TEXT("UK")) || N.StartsWith(TEXT("IN"))) return 1;
+	return Padrao;
+}
+
+void AEAWCharacter::OnRep_Nacao()
+{
+	AplicarNacao();
+}
+
+void AEAWCharacter::AplicarNacao()
+{
+	const uint8 N = FMath::Min<uint8>(Nacao, 1);
+	USkeletalMesh* Corpo = MeshNacao[N];
+	if (!Corpo)
+	{
+		return;   // fardas ainda nao importadas: fica o manequim
+	}
+	if (GetMesh()->SkeletalMesh != Corpo)
+	{
+		GetMesh()->SetSkeletalMesh(Corpo, false);
+		WeaponTP->SetMasterPoseComponent(GetMesh(), true);
+	}
+	if (FirstPersonMesh->SkeletalMesh != Corpo)
+	{
+		FirstPersonMesh->SetSkeletalMesh(Corpo, false);
+		WeaponFP->SetMasterPoseComponent(FirstPersonMesh, true);
+		if (bFirstPersonActive)
+		{
+			FirstPersonMesh->HideBoneByName(TEXT("neck_01"), EPhysBodyOp::PBO_None);
+			FirstPersonMesh->HideBoneByName(TEXT("thigh_l"), EPhysBodyOp::PBO_None);
+			FirstPersonMesh->HideBoneByName(TEXT("thigh_r"), EPhysBodyOp::PBO_None);
+		}
+	}
+	USkeletalMesh** P = &PecasNacao[N * 5];
+	if (P[0]) PecaCabeca = P[0];
+	if (P[1]) PecaBracoE = P[1];
+	if (P[2]) PecaBracoD = P[2];
+	if (P[3]) PecaPernaE = P[3];
+	if (P[4]) PecaPernaD = P[4];
 }
 
 void AEAWCharacter::OnRep_DeathAnim()

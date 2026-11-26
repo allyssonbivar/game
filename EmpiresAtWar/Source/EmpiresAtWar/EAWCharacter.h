@@ -265,6 +265,15 @@ public:
 	/** Vermelho na tela do dono quando e atingido (0..1). Lido pelo AEAWHUD. */
 	float GetDamageFlash() const { return DamageFlash; }
 
+	// ---------- Nacao (farda) ----------
+	// 0 = Franca (fuzileiro de linha 1812), 1 = Gra-Bretanha (infantaria de linha 1812). O GameMode escolhe antes do
+	// soldado nascer (spawn adiado); replicada. Troca a malha do corpo, dos bracos de 1a pessoa e das pecas do corte.
+	UPROPERTY(ReplicatedUsing = OnRep_Nacao, BlueprintReadOnly, Category = "Nacao") uint8 Nacao = 0;
+	UFUNCTION() void OnRep_Nacao();
+	void AplicarNacao();
+	/** "FR"/"Franca" -> 0, "GB"/"Britanico" -> 1; outro texto -> Padrao. */
+	static uint8 NacaoPorNome(const FString& Nome, uint8 Padrao);
+
 	/** Registra o golpe recebido (todas as maquinas); se o soldado caiu, tenta desmembrar. */
 	void NoteHit(EBodyRegion Region, const FVector& Location, const FVector& Dir, bool bAllowDismember = true);
 
@@ -289,6 +298,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Sangue") class USkeletalMesh* PecaBracoD = nullptr;
 	UPROPERTY(EditAnywhere, Category = "Sangue") class USkeletalMesh* PecaPernaE = nullptr;
 	UPROPERTY(EditAnywhere, Category = "Sangue") class USkeletalMesh* PecaPernaD = nullptr;
+	/** Fardas por nacao: corpo (com LODs) e pecas do corte [nacao * 5 + (cabeca, bracoE, bracoD, pernaE, pernaD)]. */
+	UPROPERTY() class USkeletalMesh* MeshNacao[2];
+	UPROPERTY() class USkeletalMesh* PecasNacao[10];
 	UPROPERTY() class UStaticMesh* CapMesh = nullptr;
 	UPROPERTY() class UMaterialInterface* CapMaterial = nullptr;
 

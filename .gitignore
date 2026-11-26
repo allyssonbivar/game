@@ -26,3 +26,7 @@ Modelos/Soldado_TPose.fbx
 
 # Animacao bruta do Mixamo ("Dying"); a versao usada (transferida para o nosso esqueleto) esta no Soldado.blend
 Modelos/ex/
+
+# Fardas: dados intermediarios gerados pelo gerar_fardas.py (refazer rodando o script)
+Modelos/fardas/dados/
+Modelos/fardas/__pycache__/

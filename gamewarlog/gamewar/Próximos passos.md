@@ -76,3 +76,9 @@ atualizado: 2026-11-26
 - [x] Combate fase 4 — combos por cliques (2026-11-26)
 - [x] Bots usarem combos + tiro de longe (2026-11-26)
 - [ ] Usuário apontar quais golpes ainda parecem robóticos (vídeo curto ajuda) — próximos: passe de mola nos golpes da baioneta, antecipação/peso nos golpes
+- [x] **Fardas francesa e britânica** com farda, barretina, correame, cartucheira e mochila; texturas próprias; 4 LODs; nação escolhida no jogo (2026-11-26) — ver [[Estado atual]]
+- [ ] Usuário avaliar as fardas no jogo (`-EAWNacao=GB` para jogar de britânico)
+- [ ] Rosto: o manequim não tem rosto (só pintura de sobrancelha/cabelo) — modelar cabeça própria com rosto
+- [ ] Ossos próprios para as abas da casaca (mola/física) — elimina o resto da colisão no chute/corrida
+- [ ] Corrigir as poses do mosquete que atravessam a coxa (aparo dir./esq., chute, recarga) — medido com `Modelos\fardas\teste_colisao.py`
+- [ ] Outras tropas/companhias (granadeiros, voltigeurs, oficiais, tambores) e outras nações: o gerador já separa nação → peça → pintura

@@ -29,6 +29,12 @@ public:
 
 	virtual APawn* SpawnDefaultPawnAtTransform_Implementation(AController* NewPlayer, const FTransform& SpawnTransform) override;
 
+	/** Nacao (farda) do jogador numero Indice (0 = primeiro) e dos bots. Ver -EAWNacao= e -EAWNacaoBot=. */
+	uint8 NacaoDoJogador(int32 Indice) const;
+	uint8 NacaoDoBot() const;
+	/** Cria um soldado ja com a nacao (spawn adiado: a farda entra antes do BeginPlay). */
+	AEAWCharacter* SpawnSoldier(const FVector& Loc, const FRotator& Rot, uint8 Nacao);
+
 private:
 	bool bSpawnedInitialBot = false;
 	bool bFieldSpawned = false;

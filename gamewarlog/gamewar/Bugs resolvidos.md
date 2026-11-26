@@ -75,7 +75,9 @@ atualizado: 2026-11-26
 - Dobra do pulso 92–98° em de cima e estocada (acima do ideal de 80°) — conferir a malha de perto e no Unreal.
 - Exportação de animações do Chivalry 2 no FModel sai **vazia** (0 trilhas) — só importa para estudo.
 - Licença do Mixamo: confirmar antes do lançamento (o documento pede "assets originais").
-- Personagem com ~55 mil triângulos: precisa de LODs para 150 x 150.
+- ~~Personagem com ~55 mil triângulos: precisa de LODs para 150 x 150~~ → fardas com 4 LODs (23 mil → 1,9 mil) (2026-11-26).
+- Abas da casaca francesa ainda entram 4–6 cm na coxa no chute e 4,4 cm correndo: só resolve de vez com ossos próprios das abas (física/mola) — mudaria o esqueleto.
+- Mosquete atravessa a coxa nas animações de aparo à direita/esquerda (5–7 cm), chute do mosquete (8,5 cm) e recarga (3,7 cm) — **já atravessava o corpo nu**; corrigir nas poses (Blender).
 - Atraso do próprio golpe no multiplayer (sem predição no cliente).
 | 45 | 2026-11-25 | Fumaça/gotas com material quadriculado | Material em instâncias precisa de "Used with Instanced Static Meshes"; e na 4.27 o dado por instância só existe no vertex shader | Flag nos scripts + `VertexInterpolator` no `M_Fumaca` |
 | 46 | 2026-11-25 | Mira 1ª pessoa tapada pelo ombro | Braços de 1ª pessoa do sabre ficam deslocados/inclinados | Mosquete usa encaixe próprio (corpo igual ao de 3ª pessoa) e a câmera vai ao olho ao mirar |
@@ -108,3 +110,12 @@ atualizado: 2026-11-26
 | 73 | 2026-11-26 | Mosquete encostando/atravessando a perna ao andar | Coronha a ~9 cm do eixo da coxa (na pose do tiro e na guarda da baioneta) | Poses com folga de 19 cm (tiro) e 17 cm (baioneta), medidas contra todos os quadros do trote |
 | 74 | 2026-11-26 | Ao trocar para a baioneta (X) aparecia a pose do tiro | O modo baioneta tocava a guarda do tiro até o primeiro golpe | A troca chama a guarda do combate na hora |
 | 75 | 2026-11-26 | Soldado "robô" ao andar | Tronco/braços fixos em cima das pernas | Balanço do tronco sincronizado com o passo (ombros, lado, cabeça estável); arma segue o peito |
+| 76 | 2026-11-26 | Blender fechou sozinho (e a sessão caiu junto) ao criar a "casca" do corpo | Remesh por voxel do corpo inteiro (Alpha_Surface + Alpha_Joints) pelo MCP; em segundo plano o processo também morria nesse passo | Sem remesh: roupas em anéis em volta dos ossos medidos por raios (BVH). Trabalho pesado só com `blender -b` (o `Soldado.blend` não é alterado) |
+| 77 | 2026-11-26 | Roupa "transparente" na prévia (via-se a cartucheira pelas costas) | Faces dos tubos viradas para dentro | Ordem dos vértices corrigida (a, b, c, d) e face de dentro ao contrário |
+| 78 | 2026-11-26 | Soldados cinza no jogo (material padrão) | `M_Farda` não compilava: parâmetro de textura do tipo Normal/Máscara sem textura padrão do mesmo tipo | Texturas da França como padrão dos parâmetros |
+| 79 | 2026-11-26 | Sapatos com "espetos" no calcanhar/bico em algumas poses | Pesos dos sapatos vinham do ponto mais próximo do manequim (misturava ossos errados) | Sapato rígido: calcanhar→`foot`, bico→`ball`, cano mistura a canela |
+| 80 | 2026-11-26 | Teste de colisão acusava ~5 cm em tudo | Medição pela normal da superfície mais próxima se confunde no vão entre as pernas (a calça é um tubo aberto) | Cápsulas nos ossos das pernas com o raio real da roupa (e do corpo nu para comparar) |
+| 81 | 2026-11-26 | Cartucheira entrando na coxa direita correndo (até 9 cm) | Presa só ao quadril, baixa e perto da coxa | Mais alta e mais para trás + 20% de peso da coxa direita → saiu da lista |
+| 82 | 2026-11-26 | Atlas de UV com só ~33% de uso | Mãos decimadas viraram centenas de ilhas pequenas | Ilhas das mãos 0,3×, rosto 1,6×, placas 1,5× → ~49% (FR) |
+| 83 | 2026-11-26 | Mãos "quadradas" na 1ª pessoa | Mãos reduzidas a 16% dos triângulos | 38% no LOD0 (os LODs seguintes continuam leves) |
+| 84 | 2026-11-26 | Abas da casaca entrando nas coxas (chute 8–11 cm, trote 3,5 cm) | Pele linear (sem osso próprio da aba): presas ao quadril a perna atravessa ao ir para trás; presas à coxa a outra perna encosta | Meio-termo medido: 40% da coxa na ponta, mais abertura e folga embaixo → trote ≤ 1,1 cm, chute 4–6 cm |

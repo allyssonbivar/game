@@ -70,10 +70,50 @@ APawn* AEAWGameMode::SpawnDefaultPawnAtTransform_Implementation(AController* New
 	const int32 N = SpawnCount++;
 	const float Side = (N % 2 == 0 ? 1.f : -1.f) * 250.f * ((N + 1) / 2);
 	T.AddToTranslation(T.GetRotation().GetRightVector() * Side);
-	FActorSpawnParameters Params;
-	Params.Instigator = GetInstigator();
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-	return GetWorld()->SpawnActor<APawn>(GetDefaultPawnClassForController(NewPlayer), T, Params);
+	// Nacao definida antes do BeginPlay (spawn adiado): jogadores alternam Franca/Gra-Bretanha pela ordem de entrada.
+	APawn* Pawn = GetWorld()->SpawnActorDeferred<APawn>(GetDefaultPawnClassForController(NewPlayer), T, nullptr, GetInstigator(),
+		ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn);
+	if (AEAWCharacter* Soldier = Cast<AEAWCharacter>(Pawn))
+	{
+		Soldier->Nacao = NacaoDoJogador(N);
+	}
+	if (Pawn)
+	{
+		Pawn->FinishSpawning(T);
+	}
+	return Pawn;
+}
+
+uint8 AEAWGameMode::NacaoDoJogador(int32 Indice) const
+{
+	// -EAWNacao=FR|GB : nacao do 1o jogador (padrao Franca); os seguintes alternam.
+	FString Nome;
+	const uint8 Base = FParse::Value(FCommandLine::Get(), TEXT("EAWNacao="), Nome) ? AEAWCharacter::NacaoPorNome(Nome, 0) : 0;
+	return (Indice % 2 == 0) ? Base : 1 - Base;
+}
+
+uint8 AEAWGameMode::NacaoDoBot() const
+{
+	// -EAWNacaoBot=FR|GB ; sem ele, o bot e do lado oposto ao 1o jogador.
+	FString Nome;
+	if (FParse::Value(FCommandLine::Get(), TEXT("EAWNacaoBot="), Nome))
+	{
+		return AEAWCharacter::NacaoPorNome(Nome, 1);
+	}
+	return 1 - NacaoDoJogador(0);
+}
+
+AEAWCharacter* AEAWGameMode::SpawnSoldier(const FVector& Loc, const FRotator& Rot, uint8 Nacao)
+{
+	const FTransform T(Rot, Loc);
+	AEAWCharacter* S = GetWorld()->SpawnActorDeferred<AEAWCharacter>(AEAWCharacter::StaticClass(), T, nullptr, nullptr,
+		ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn);
+	if (S)
+	{
+		S->Nacao = Nacao;
+		S->FinishSpawning(T);
+	}
+	return S;
 }
 
 void AEAWGameMode::HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer)
@@ -189,7 +229,7 @@ void AEAWGameMode::SetupDuel(APlayerController* Viewer)
 		Half = FMath::Max(110.f, Half * 0.5f);
 		const FVector Loc = Center + FVector(0.f, Side * Half, 0.f);
 		const FRotator Rot = (Center - Loc).GetSafeNormal2D().Rotation();
-		if (AEAWCharacter* Bot = GetWorld()->SpawnActor<AEAWCharacter>(AEAWCharacter::StaticClass(), Loc, Rot, Params))
+		if (AEAWCharacter* Bot = SpawnSoldier(Loc, Rot, (uint8)i))   // duelo: um frances e um britanico
 		{
 			ConfigureBot(Bot);
 			Bot->SetShowHitboxes(false);
@@ -341,7 +381,7 @@ AEAWCharacter* AEAWGameMode::SpawnBotNear(APawn* Near)
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-	AEAWCharacter* Bot = GetWorld()->SpawnActor<AEAWCharacter>(AEAWCharacter::StaticClass(), Location, Rotation, Params);
+	AEAWCharacter* Bot = SpawnSoldier(Location, Rotation, NacaoDoBot());
 	ConfigureBot(Bot);
 	return Bot;
 }
