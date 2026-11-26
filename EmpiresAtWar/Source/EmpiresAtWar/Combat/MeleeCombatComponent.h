@@ -107,6 +107,8 @@ public:
 	/** Botao de defesa segurado/solto: depois da janela do parry, segurando, fica em defesa (Block) ate soltar. */
 	void RequestBlockHold(bool bHold);
 	bool IsBlocking() const { return Rep.State == EMeleeState::Block; }
+	/** Combo: 0 = 1o golpe, 1 = 2o, 2 = golpe final (3o clique ou 2 cliques + E). */
+	uint8 GetComboStep() const { return Rep.ComboStep; }
 	bool IsCharging() const { return Rep.State == EMeleeState::Windup && Rep.Direction == EAttackDirection::Special; }
 	/** 0..1 da carga do golpe especial. */
 	float GetChargeAlpha() const;
@@ -220,6 +222,10 @@ protected:
 	// So no servidor
 	bool bComboQueued = false;
 	bool bBlockHeld = false;   // jogador segurando o botao de defesa
+	bool bChargeFromCombo = false;   // a carga do especial comecou no meio de um combo (soltou cedo = continua o combo)
+	uint8 ChargeComboStep = 0;
+	/** Proximo golpe encadeado: conta o passo e transforma o 3o em golpe final. */
+	void StartComboAttack(EAttackDirection Direction, uint8 PrevStep);
 	EAttackDirection QueuedDirection = EAttackDirection::SlashLeft;
 	float RiposteUntil = -1.f;
 	float LastStaminaSpendTime = -100.f;

@@ -29,3 +29,5 @@ atualizado: 2026-11-26
 - **Sem escudo** no jogo.
 - **O golpe especial ("combo da força": segurar o botão esquerdo 3 s + W) não muda.**
 - Combos por sequência simples de cliques (ex.: 2 cliques, 3 cliques, cliques + uma tecla) — escolher o mais fácil para o jogador.
+- **Combos (2026-11-26):** 2 cliques = dois cortes; 3 cliques = golpe final de cima; 2 cliques + E = estocada final.
+- Toda mudança de movimento/animação: conferir de novo o golpe especial (`-EAWAutoEspecial`), que não pode mudar (bug #70).

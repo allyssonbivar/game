@@ -235,3 +235,19 @@ Sem escudo (decisão do usuário). **O golpe especial não mudou.** Animações 
   - Baioneta: a pose da defesa **acompanha o golpe que vem** (alta para golpe de cima/salto; em pé à esquerda/direita para cortes, estocadas, especial e golpe correndo).
 - **Trocas entre golpes:** mistura de 0,12 s com curva em S e o trecho anterior continua tocando durante a mistura (antes congelava). **Medição:** já não era o problema — nas 43 trocas do teste a ponta da arma acelera menos (p95 ~18.000) que no meio dos golpes (p95 ~42.000); depois da mudança ficou igual dentro da variação (p95 ~19.000). Os maiores "trancos" são o próprio impacto do golpe (lâmina mais rápida de propósito).
 - Testes: `-EAWAutoGolpe=Defesa` (segura a defesa e anda para frente/trás na frente do bot); registro por quadro agora grava o estado do combate (`-EAWDiagMov`).
+
+## Combate — fase 4: combos por cliques (2026-11-26) ✔ testado contra bot
+**O golpe especial não mudou** (conferido: sabre 150, baioneta 160 a 2,8–3 m, igual a antes da fase 1).
+| Sequência | O que acontece |
+|---|---|
+| 1 clique | corte (alterna esquerda/direita a cada golpe, como antes) |
+| **2 cliques seguidos** | 2º corte do outro lado com preparação rápida ("Combo 2" na tela) |
+| **3 cliques seguidos** | o 3º vira **golpe final de cima**: dano ×1,35, preparação ×1,1 ("GOLPE FINAL!") — mosquete: estocada longa |
+| **2 cliques + E** | fecha com **estocada final** (dano ×1,35 e passo 40% mais longo — alcança quem recua) — mosquete: estocada longa |
+- O clique "pega" a partir de 35% do golpe (antes 50%): encadear ficou mais fácil. Clicar também na volta à guarda continua o combo.
+- Depois do golpe final o combo recomeça. Defender, fintar, ser atordoado ou voltar à guarda zera o combo. Chute, golpe correndo/de salto e especial não contam como passo.
+- Andando para a frente (W), um clique na volta à guarda começa a carga do especial (como sempre); **soltando rápido, o combo continua** (antes recomeçava).
+- Teste: `-EAWAutoGolpe=Combo3` / `Combo2E`.
+
+### Regressão encontrada e corrigida (bug #70)
+O golpe especial **parou de acertar** depois da fase 1 (a investida parava ~20 cm antes). Achado comparando versões compiladas lado a lado (antes/depois da fase 1, desfazendo uma mudança por vez): a **mola do peso do andar** mudava a mistura das pernas no instante da investida, e o alcance de todos os golpes (inclusive o especial) foi medido com a mistura antiga. Agora: mola só andando/parando em guarda; nos golpes, a mistura antiga. Também a freada nos golpes voltou a ser exatamente a antiga (a macia fica para andar/parar).

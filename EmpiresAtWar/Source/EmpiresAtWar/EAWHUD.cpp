@@ -47,6 +47,21 @@ void AEAWHUD::DrawHUD()
 		DrawRect(P >= 1.f ? FLinearColor(0.9f, 0.15f, 0.1f, 1.f) : FLinearColor(0.95f, 0.75f, 0.3f, 1.f), BarX + 1.f, BarY + 1.f, (BarW - 2.f) * P, 7.f);
 	}
 
+	// Combo: mostra o passo (2o golpe) e o golpe final (3o clique ou 2 cliques + E).
+	if (UMeleeCombatComponent* C = Soldier->GetCombat())
+	{
+		const EMeleeState S = C->GetState();
+		if (!C->IsCharging() && C->GetComboStep() > 0 && (S == EMeleeState::Windup || S == EMeleeState::Release))
+		{
+			UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+			const FString Label = C->GetComboStep() >= 2 ? TEXT("GOLPE FINAL!") : TEXT("Combo 2");
+			float TW = 0.f, TH = 0.f;
+			GetTextSize(Label, TW, TH, Font, 1.2f);
+			DrawText(Label, C->GetComboStep() >= 2 ? FLinearColor(1.f, 0.4f, 0.2f) : FLinearColor(1.f, 0.92f, 0.7f),
+				W * 0.5f - TW * 0.5f, H * 0.66f, Font, 1.2f);
+		}
+	}
+
 	// Arma no chao: aviso no centro e barra de progresso (segurar F por 3 s).
 	if (const AEAWDroppedWeapon* Target = Soldier->GetPickupTarget())
 	{

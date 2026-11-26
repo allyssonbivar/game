@@ -172,9 +172,15 @@ struct FMeleeWeaponConfig
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Finta")
 	float FeintLatestAlpha = 0.8f;
 
-	/** A partir desta fracao do golpe, apertar ataque guarda um combo. */
+	/** A partir desta fracao do golpe, apertar ataque guarda um combo (0,35: o clique "pega" mais cedo = combo mais fluido). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo")
-	float ComboQueueFromReleaseAlpha = 0.5f;
+	float ComboQueueFromReleaseAlpha = 0.35f;
+
+	/** Golpe final do combo (3o clique, ou 2 cliques + E): mais pesado - dano x1,35, preparacao x1,1. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo")
+	float ComboFinisherDamageMult = 1.35f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo")
+	float ComboFinisherWindupMult = 1.1f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pose")
 	FMeleePose GuardPose = FMeleePose(FVector(0.f, 0.f, 0.f), FRotator(55.f, -10.f, 0.f));
@@ -280,4 +286,8 @@ struct FMeleeStateRep
 	/** Muda a cada transicao, para os clientes notarem estados repetidos (combo de mesmo tipo). */
 	UPROPERTY()
 	uint8 Serial = 0;
+
+	/** Passo do combo deste golpe: 0 = 1o golpe, 1 = 2o, 2 = golpe final. */
+	UPROPERTY()
+	uint8 ComboStep = 0;
 };

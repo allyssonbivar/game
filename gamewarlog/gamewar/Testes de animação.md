@@ -162,3 +162,7 @@ Capturas a cada 0,2–0,3 s com `-EAWDuelo`; cortes forçados com `-EAWTesteCort
 | Defesa segurada (sabre, bot atacando) | ✔ lâmina erguida andando para frente/trás; 2 golpes bloqueados (o 1º golpe passou antes de a guarda subir) |
 | Defesa segurada (baioneta) | ✔ bloqueia; a pose troca de alta para lateral quando o bot ataca |
 | Trocas entre golpes (medição) | = sem mudança medida (já eram mais suaves que o meio dos golpes) |
+| Combo 3 cliques | ✔ "Combo 2" → 2º corte acerta → "GOLPE FINAL!" (de cima) |
+| Combo 2 cliques + E | ✔ estocada final acerta com dano ×1,35 |
+| Golpe especial depois das 4 fases | ✔ sabre 150 (2 de 2), baioneta 160 — igual a antes (bug #70 corrigido) |
+| Regressão fases 2–3 | ✔ salto 120, correndo 110, chute a 1,4/1,5 m, defesa segurada 4 bloqueios em 10 s |

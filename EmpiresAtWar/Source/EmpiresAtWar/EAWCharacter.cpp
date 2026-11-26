@@ -405,6 +405,15 @@ void AEAWCharacter::Tick(float DeltaSeconds)
 		AutoWalkTime += DeltaSeconds;
 		auto Crossed = [&](float Cycle, float At) { return FMath::Fmod(Prev, Cycle) < At && FMath::Fmod(AutoWalkTime, Cycle) >= At; };
 		if (AutoGolpe == TEXT("Chute") && Crossed(2.2f, 0.2f)) { InputKick(); }
+		else if (AutoGolpe == TEXT("Combo3") || AutoGolpe == TEXT("Combo2E"))
+		{
+			// 3 cliques seguidos (golpe final de cima) ou 2 cliques + E (estocada final), a cada 4 s.
+			if (Crossed(4.f, 0.05f) || Crossed(4.f, 0.62f)) { InputSlash(); InputSlashReleased(); }
+			if (Crossed(4.f, 1.22f))
+			{
+				if (AutoGolpe == TEXT("Combo3")) { InputSlash(); InputSlashReleased(); } else { InputOverhead(); }
+			}
+		}
 		else if (AutoGolpe == TEXT("Defesa"))
 		{
 			// Segura a defesa (aperta de novo depois de atordoado) e anda para a frente e para tras na frente do bot.
@@ -774,6 +783,16 @@ void AEAWCharacter::ApplyMovementSpeed()
 	float CombatMult = 1.f;
 	bool bBusy = false;
 	const bool bSprintAttack = Combat->GetDirection() == EAttackDirection::Sprint;
+	// Freada: macia (~0,15 s) andando/parando; nos golpes, a antiga (forte), porque a investida de cada golpe - e a do golpe
+	// especial, que nao pode mudar - foi medida com ela (com a macia o especial passava do alvo e trombava nele).
+	{
+		const EMeleeState St = Combat->GetState();
+		const bool bLunging = St == EMeleeState::Windup || St == EMeleeState::Release || St == EMeleeState::Recovery || St == EMeleeState::Stunned;
+		UCharacterMovementComponent* Move = GetCharacterMovement();
+		Move->bUseSeparateBrakingFriction = !bLunging;   // golpes: exatamente como antes (atrito do chao na freada)
+		Move->BrakingFriction = 2.f;
+		Move->BrakingDecelerationWalking = bLunging ? 1600.f : 1150.f;
+	}
 	switch (Combat->GetState())
 	{
 	case EMeleeState::Windup:   CombatMult = bSprintAttack ? 1.f : 0.65f; bBusy = !bSprintAttack; break;
@@ -1251,10 +1270,24 @@ void AEAWCharacter::HandleCombatState(EMeleeState NewState, EAttackDirection Dir
 					Lunge = FMath::Clamp(FMath::Sqrt(2.f * 5800.f * FMath::Max(0.f, Best - StopDist)), 200.f, 1100.f);
 				}
 			}
+			if (Combat->GetComboStep() >= 2 && Direction != EAttackDirection::Special)
+			{
+				Lunge *= 1.4f;   // golpe final do combo: passo mais longo (a estocada final alcanca quem recua)
+			}
 			LaunchCharacter(LungeDir * Lunge, false, false);
+			UE_LOG(LogEAWCombat, Verbose, TEXT("%s investida: %.0f cm/s (dir %d)"), *GetName(), Lunge, (int32)Direction);
 		}
 		break;
-	case EMeleeState::Recovery:      PlaySegment(Attack, T(ReleaseEnd), T(Last), D, false, AttackFP); break;
+	case EMeleeState::Recovery:
+		PlaySegment(Attack, T(ReleaseEnd), T(Last), D, false, AttackFP);
+		if (HasAuthority())
+		{
+			for (TActorIterator<AEAWCharacter> It(GetWorld()); It; ++It)
+			{
+				if (*It != this) UE_LOG(LogEAWCombat, Verbose, TEXT("%s fim do golpe: %.0f cm do %s"), *GetName(), It->GetDistanceTo(this), *It->GetName());
+			}
+		}
+		break;
 	case EMeleeState::Parry:
 		LastParryAnim = Parry; LastParryAnimFP = ParryFP;
 		PlaySegment(Parry, T(1), T(10), D, false, ParryFP); break;

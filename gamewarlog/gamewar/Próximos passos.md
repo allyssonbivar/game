@@ -73,4 +73,5 @@ atualizado: 2026-11-26
 - [ ] Bots usarem chute, golpe correndo e de salto
 - [x] Combate fase 3 — defesa segurada andando + trocas suaves (2026-11-26)
 - [ ] Bots usarem a defesa segurada
-- [ ] Combate fase 4 — combos por sequência de cliques (sem mexer no golpe especial)
+- [x] Combate fase 4 — combos por cliques (2026-11-26)
+- [ ] Bots usarem combos

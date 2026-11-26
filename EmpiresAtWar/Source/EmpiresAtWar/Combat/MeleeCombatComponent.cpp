@@ -264,6 +264,9 @@ void UMeleeCombatComponent::HandleChargeStart()
 		return;
 	}
 	bComboQueued = false;
+	bChargeFromCombo = Rep.State == EMeleeState::Recovery;
+	ChargeComboStep = Rep.ComboStep;
+	Rep.ComboStep = 0;
 	// A carga fica em Windup ate o dono soltar (limite de 20 s, depois desiste sozinho).
 	EnterState(EMeleeState::Windup, EAttackDirection::Special, 20.f);
 }
@@ -287,8 +290,54 @@ void UMeleeCombatComponent::HandleChargeRelease(bool bFire, EAttackDirection Fal
 	EnterState(EMeleeState::Idle, Rep.Direction, 0.f);
 	if (Fallback != EAttackDirection::Special)
 	{
-		HandleAttack(Fallback);
+		// Clique rapido no meio do combo (andando para a frente a carga comeca sozinha): continua o combo.
+		if (bChargeFromCombo) { StartComboAttack(Fallback, ChargeComboStep); }
+		else { HandleAttack(Fallback); }
 	}
+	bChargeFromCombo = false;
+}
+
+void UMeleeCombatComponent::StartComboAttack(EAttackDirection Direction, uint8 PrevStep)
+{
+	const FMeleeWeaponConfig& Config = GetConfig();
+	// Chute, golpe correndo/de salto e especial nao fazem parte do combo de cliques.
+	if (Direction == EAttackDirection::Kick || Direction == EAttackDirection::Sprint || Direction == EAttackDirection::Jump
+		|| Direction == EAttackDirection::Special)
+	{
+		const FMeleeAttackSpec* Spec = Config.Attacks.Find(Direction);
+		Rep.ComboStep = 0;
+		if (Spec) { StartWindup(Direction, Spec->Windup); }
+		return;
+	}
+	// 1o clique = passo 0; 2o = passo 1 (preparacao rapida); 3o = golpe final. Depois do golpe final, recomeca.
+	const uint8 Step = PrevStep >= 2 ? 0 : PrevStep + 1;
+	EAttackDirection Dir = Direction;
+	if (Step == 2)
+	{
+		const bool bMusket = Config.WeaponName == TEXT("Mosquete");
+		if (Dir == EAttackDirection::SlashLeft || Dir == EAttackDirection::SlashRight)
+		{
+			Dir = EAttackDirection::Overhead;   // 3 cliques: golpe final de cima (mosquete: estocada longa)
+		}
+		else if (Dir == EAttackDirection::Overhead && !bMusket)
+		{
+			Dir = EAttackDirection::Stab;       // 2 cliques + E: estocada final (alcanca quem recua)
+		}
+	}
+	const FMeleeAttackSpec* Spec = Config.Attacks.Find(Dir);
+	if (!Spec)
+	{
+		return;
+	}
+	Rep.ComboStep = Step;
+	float Windup = Step == 0 ? Spec->Windup : Spec->ComboWindup;
+	if (Step == 2)
+	{
+		Windup *= Config.ComboFinisherWindupMult;
+	}
+	UE_LOG(LogEAWCombat, Log, TEXT("%s combo passo %d (%s)"), GetOwner() ? *GetOwner()->GetName() : TEXT("?"), Step + 1,
+		Step == 2 ? TEXT("golpe final") : Step == 1 ? TEXT("encadeado") : TEXT("novo"));
+	StartWindup(Dir, Windup);
 }
 
 bool UMeleeCombatComponent::ServerAttack_Validate(EAttackDirection Direction) { return true; }
@@ -333,10 +382,12 @@ void UMeleeCombatComponent::HandleAttack(EAttackDirection Direction)
 	switch (Rep.State)
 	{
 	case EMeleeState::Block:
+		Rep.ComboStep = 0;
 		StartWindup(Direction, Spec->Windup);
 		break;
 
 	case EMeleeState::Idle:
+		Rep.ComboStep = 0;
 		if (HasRiposte())
 		{
 			RiposteUntil = -1.f;
@@ -365,7 +416,7 @@ void UMeleeCombatComponent::HandleAttack(EAttackDirection Direction)
 		break;
 
 	case EMeleeState::Recovery:
-		StartWindup(Direction, Spec->ComboWindup);
+		StartComboAttack(Direction, Rep.ComboStep);
 		break;
 
 	default:
@@ -429,6 +480,10 @@ void UMeleeCombatComponent::StartWindup(EAttackDirection Direction, float Windup
 
 void UMeleeCombatComponent::EnterState(EMeleeState NewState, EAttackDirection Direction, float Duration)
 {
+	if (NewState != EMeleeState::Windup && NewState != EMeleeState::Release && NewState != EMeleeState::Recovery)
+	{
+		Rep.ComboStep = 0;   // guarda, defesa, finta, atordoado: o combo acaba
+	}
 	Rep.State = NewState;
 	Rep.Direction = Direction;
 	Rep.StartTime = Now();
@@ -473,8 +528,7 @@ void UMeleeCombatComponent::OnStateFinished()
 	case EMeleeState::Release:
 		if (bComboQueued)
 		{
-			const FMeleeAttackSpec* Next = Config.Attacks.Find(QueuedDirection);
-			StartWindup(QueuedDirection, Next ? Next->ComboWindup : 0.3f);
+			StartComboAttack(QueuedDirection, Rep.ComboStep);
 		}
 		else
 		{
@@ -585,6 +639,8 @@ void UMeleeCombatComponent::TraceBlade()
 
 			for (const FHitResult& Hit : Hits)
 			{
+				UE_LOG(LogEAWCombat, VeryVerbose, TEXT("%s lamina tocou %s (%s)"), *GetOwner()->GetName(),
+					Hit.GetActor() ? *Hit.GetActor()->GetName() : TEXT("?"), Hit.GetComponent() ? *Hit.GetComponent()->GetName() : TEXT("?"));
 				ResolveHit(Hit);
 				if (Rep.State != EMeleeState::Release)
 				{
@@ -703,7 +759,11 @@ void UMeleeCombatComponent::ResolveHit(const FHitResult& Hit)
 		Region = EBodyRegion::Torso;
 	}
 	const float* RegionMult = Config.RegionDamageMultiplier.Find(Region);
-	const float Damage = (Spec ? Spec->BaseDamage : 30.f) * (RegionMult ? *RegionMult : 1.f);
+	float Damage = (Spec ? Spec->BaseDamage : 30.f) * (RegionMult ? *RegionMult : 1.f);
+	if (Rep.ComboStep >= 2)
+	{
+		Damage *= Config.ComboFinisherDamageMult;   // golpe final do combo
+	}
 
 	const FVector HitDirection = (Hit.TraceEnd - Hit.TraceStart).GetSafeNormal();
 	AController* InstigatorController = Owner->GetInstigatorController();

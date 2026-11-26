@@ -5,6 +5,8 @@
 #include "EAWCharacter.h"
 #include "Combat/MeleeCombatComponent.h"
 #include "GameFramework/Pawn.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 namespace
 {
@@ -179,7 +181,17 @@ void UEAWAnimInstance::TickValues(float Dt, FEAWAnimFrame& Out)
 	WalkPhase = FMath::Fmod(WalkPhase + Dt * (Speed / Natural) / WalkCycle, 1.f);
 	RunPhase = FMath::Fmod(RunPhase + Dt * (Speed / SpeedRun) / RunCycle, 1.f);
 
-	SpringTo(LocoWeight, LocoWeightVel, FMath::Clamp(Speed / 40.f, 0.f, 1.f), 13.f, Dt);
+	// Andando/parando em guarda: mola (sem tranco). Durante os golpes, a mistura antiga: a investida e o alcance de cada golpe
+	// - e do golpe especial, que nao pode mudar - foram medidos com ela (com a mola o especial parava antes do alvo).
+	if (bCombatIdle)
+	{
+		SpringTo(LocoWeight, LocoWeightVel, FMath::Clamp(Speed / 40.f, 0.f, 1.f), 13.f, Dt);
+	}
+	else
+	{
+		LocoWeight = FMath::FInterpTo(LocoWeight, FMath::Clamp(Speed / 40.f, 0.f, 1.f), Dt, 10.f);
+		LocoWeightVel = 0.f;
+	}
 	LocoWeight = FMath::Clamp(LocoWeight, 0.f, 1.f);
 	// Agachado: desce/sobe em 0,25 s; o passo agachado sincroniza com a velocidade como o andar.
 	CrouchWeight = FMath::FInterpConstantTo(CrouchWeight, (bCrouched && CrouchIdle) ? 1.f : 0.f, Dt, 4.f);
