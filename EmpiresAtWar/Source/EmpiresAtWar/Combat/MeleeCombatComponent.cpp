@@ -596,6 +596,31 @@ void UMeleeCombatComponent::ResolveHit(const FHitResult& Hit)
 	const FMeleeAttackSpec* Spec = Config.Attacks.Find(Rep.Direction);
 	UMeleeCombatComponent* VictimCombat = Victim->FindComponentByClass<UMeleeCombatComponent>();
 
+	// Chute: nao fere. Atravessa a defesa (quem defende perde a guarda), gasta stamina, atordoa e empurra.
+	// Quem esta no meio do proprio golpe (Release) so e empurrado (o golpe continua: troca de golpes).
+	if (Rep.Direction == EAttackDirection::Kick)
+	{
+		if (VictimCombat)
+		{
+			const EMeleeState VS = VictimCombat->Rep.State;
+			VictimCombat->Stamina = FMath::Max(0.f, VictimCombat->Stamina - 20.f);
+			VictimCombat->LastStaminaSpendTime = Now();
+			if (VS != EMeleeState::Incapacitated && VS != EMeleeState::Release)
+			{
+				VictimCombat->bComboQueued = false;
+				VictimCombat->EnterState(EMeleeState::Stunned, VictimCombat->Rep.Direction,
+					VS == EMeleeState::Parry ? VictimCombat->GetConfig().StunWhenGuardBroken : 0.6f);
+			}
+		}
+		if (ACharacter* VictimChar = Cast<ACharacter>(Victim))
+		{
+			const FVector Push = (Victim->GetActorLocation() - Owner->GetActorLocation()).GetSafeNormal2D();
+			VictimChar->LaunchCharacter(Push * 520.f + FVector(0.f, 0.f, 120.f), true, false);
+		}
+		UE_LOG(LogEAWCombat, Log, TEXT("%s chutou %s"), *Owner->GetName(), *Victim->GetName());
+		return;
+	}
+
 	// Parry: defensor na janela de defesa e virado para o atacante.
 	if (VictimCombat && VictimCombat->Rep.State == EMeleeState::Parry)
 	{

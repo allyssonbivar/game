@@ -215,3 +215,12 @@ Referência: vídeos `Modelos\ex\baseMove/ataqueOnehand/thohamds.mp4` (pacote pa
 - **Virar:** o giro do corpo acelera e freia (1.800°/s²) em vez de começar já a 320–540°/s.
 - **Medição (roteiro de 14 s, 60 qps, aceleração da ponta da arma, p95):** média 2.854 → 1.922; inverter para trás 8.345 → 1.553; mão 1.711 → 1.303; cabeça 1.231 → 974. Escorregão do pé na diagonal: 166/137 → ~59/57 cm/s.
 - Testes: `-EAWRoteiroMov` (roteiro fixo: partir, parar, diagonais, inverter, virar no lugar, andar virando) + `-EAWDiagMov` (grava `Saved\Logs\diagmov.csv`). Análise: scripts `mov_test.sh` / `mov_analyze.py` (pasta temporária da sessão; a receita está aqui).
+
+## Combate — fase 2: ataques novos (2026-11-26) ✔ testado contra bot (câmera lateral e 1ª pessoa)
+Sem escudo (decisão do usuário). **O golpe especial não mudou.** Animações feitas do zero (`Soldado.blend` → texto `eaw_ataques`).
+- **Golpe correndo — Shift + botão esquerdo** (já correndo, > 3,8 m/s): sabre armado atrás do ombro → corte diagonal de cima, corpo inclinado; **não freia a corrida** (as pernas continuam correndo). Dano 55, stamina 16. `AS_Sabre_Correndo` (+`_FP`). Mosquete: estocada da cintura. Correndo, o clique vira este golpe (o especial continua com W sem Shift).
+- **Golpe de salto — botão esquerdo no ar:** sabre bem alto com o corpo arqueado → desce com tudo e aterrissa agachado (as pernas seguem o golpe). Dano 60. `AS_Sabre_Salto` (+`_FP`). Mosquete: estocada longa.
+- **Chute — V** (sabre, faca, machado e baioneta): joelho sobe → pé estica na altura da barriga. **Não fere**; atravessa a defesa (quem defendia perde a guarda, 0,9 s), tira 20 de stamina, atordoa 0,6 s e **empurra ~1 m**. Quem está no meio do próprio golpe só é empurrado. Acerta com a perna (do joelho à ponta do pé), alcance ~1,5 m (testado: acerta a 1,5 m, não a 1,65 m). `AS_Chute` e `AS_Mosquete_Chute` (+`_FP`, mosquete na guarda da baioneta).
+- Animador: trechos de "corpo inteiro" (chute e golpe de salto) — as pernas seguem o golpe mesmo andando, com troca suave (mola).
+- Versões `_FP`: mão esquerda baixa e quadril quase parado (na 3ª pessoa a mão esquerda vai à frente para equilibrar; na 1ª pessoa ela tapava a visão).
+- Teste: `-EAWAutoGolpe=Chute|Salto|Correndo` (o seu soldado repete o golpe contra o bot).

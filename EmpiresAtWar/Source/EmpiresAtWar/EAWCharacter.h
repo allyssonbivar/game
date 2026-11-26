@@ -131,6 +131,8 @@ protected:
 	void StartSprint();
 	/** C ou Ctrl: agacha/levanta. So com mosquete (modo tiro) ou pistola; correr, pular ou trocar para arma branca levanta. */
 	void InputCrouch();
+	/** V: chute (so no corpo a corpo, inclusive baioneta). */
+	void InputKick();
 	void ComposeMoveInput();
 	virtual void OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
 	virtual void OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
@@ -353,6 +355,17 @@ protected:
 	UPROPERTY() class UAnimSequence* AnimMAparoAlto = nullptr;      UPROPERTY() class UAnimSequence* AnimMAparoAltoFP = nullptr;
 	// Agachado (so com arma de fogo): pernas e altura do quadril; o tronco continua tocando a arma (mirar, atirar, recarregar).
 	UPROPERTY() class UAnimSequence* AnimAgachadoParado = nullptr;
+	// Fase 2 do combate: golpe correndo, golpe de salto, chute (+ chute com o mosquete na guarda da baioneta).
+	UPROPERTY() class UAnimSequence* AnimSabreCorrendo = nullptr;
+	UPROPERTY() class UAnimSequence* AnimSabreSalto = nullptr;
+	UPROPERTY() class UAnimSequence* AnimSabreCorrendoFP = nullptr;   UPROPERTY() class UAnimSequence* AnimSabreSaltoFP = nullptr;
+	UPROPERTY() class UAnimSequence* AnimChute = nullptr;
+	UPROPERTY() class UAnimSequence* AnimMChute = nullptr;   UPROPERTY() class UAnimSequence* AnimMChuteFP = nullptr;
+	/** O proximo trecho de combate vale para o corpo inteiro (pernas tambem): chute e golpe de salto. */
+	bool bSegmentFullBody = false;
+	/** Lamina da arma atual (o chute troca para a perna e depois volta). */
+	FName SavedGrip, SavedTip;
+	float SavedBladeStart = 0.f, SavedBladeLength = 0.f;
 	UPROPERTY() class UAnimSequence* AnimAgachadoFrente = nullptr;  UPROPERTY() class UAnimSequence* AnimAgachadoTras = nullptr;
 	UPROPERTY() class UAnimSequence* AnimAgachadoEsq = nullptr;     UPROPERTY() class UAnimSequence* AnimAgachadoDir = nullptr;
 

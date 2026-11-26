@@ -15,6 +15,7 @@ struct FEAWSegment
 	float End = 0.f;
 	float Rate = 1.f;
 	bool bLoop = false;
+	bool bFullBody = false;   // pernas tambem seguem o trecho (chute, golpe de salto)
 };
 
 /** Dados que o "animador" le na thread de animacao (copiados da thread do jogo a cada quadro). */
@@ -33,6 +34,7 @@ struct FEAWAnimFrame
 	float RunWeight = 0.f;       // andar -> correr
 	float UpperRunWeight = 0.f;  // correndo sem lutar: tronco tambem corre (sabre no ombro)
 	float AimYaw = 0.f;          // mira - corpo (graus): o tronco e a arma torcem na cintura
+	float FullBodyWeight = 0.f;  // 1 = pernas do trecho de combate (chute, salto); 0 = pernas do movimento
 	// Agachado: pernas e altura do quadril vem destas animacoes; o tronco continua no combate/arma.
 	UAnimSequence* CrouchIdle = nullptr;
 	UAnimSequence* CrouchWalk[4] = { nullptr, nullptr, nullptr, nullptr };
@@ -87,7 +89,7 @@ public:
 	bool bAllowUpperRun = true;
 
 	/** Toca [Start, End] (s) em Duration segundos; transicao suave a partir do trecho anterior. */
-	void SetCombatSegment(UAnimSequence* Anim, float Start, float End, float Duration, bool bLoop);
+	void SetCombatSegment(UAnimSequence* Anim, float Start, float End, float Duration, bool bLoop, bool bFullBody = false);
 
 	/** Chamado na thread do jogo antes de cada atualizacao. */
 	void TickValues(float DeltaSeconds, FEAWAnimFrame& Out);
@@ -106,6 +108,7 @@ private:
 	float LocoWeight = 0.f, RunWeight = 0.f, UpperRunWeight = 0.f;
 	// Molas criticas (comecam e terminam com velocidade zero): velocidades de cada valor suavizado.
 	float LocoWeightVel = 0.f, AimYawVel = 0.f, AimYawSmooth = 0.f;
+	float FullBody = 0.f, FullBodyVel = 0.f;
 	float DirWVel[8] = { 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f };
 	float DirW[8] = { 1.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f };   // 8 direcoes por angulo: F, FD, D, TD, T, TE, E, FE
 	float AimYaw = 0.f;

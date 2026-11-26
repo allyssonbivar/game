@@ -25,7 +25,10 @@ enum class EAttackDirection : uint8
 	SlashRight,  // corte horizontal vindo da esquerda para a direita
 	Overhead,    // golpe de cima
 	Stab,        // estocada
-	Special      // golpe especial carregado: segurar o ataque 3 s + W (puxa o braco para tras e estoca com o corpo)
+	Special,     // golpe especial carregado: segurar o ataque 3 s + W (puxa o braco para tras e estoca com o corpo)
+	Sprint,      // golpe correndo (Shift + botao esquerdo): corte diagonal de cima sem perder a corrida
+	Jump,        // golpe de salto (botao esquerdo no ar): de cima, aterrissando
+	Kick         // chute (V): nao fere; atravessa a defesa, gasta stamina, atordoa e empurra
 };
 
 UENUM(BlueprintType)
@@ -222,6 +225,25 @@ struct FMeleeWeaponConfig
 		Special.StaminaCost = 25.f;
 		Special.BaseDamage = 150.f;   // atravessa o tronco: fatal (LethalEnergyThreshold = 150)
 		Attacks.Add(EAttackDirection::Special, Special);
+
+		// Fase 2 do combate (2026-11-26).
+		FMeleeAttackSpec Sprint = Over;
+		Sprint.Windup = 0.30f; Sprint.ComboWindup = 0.30f; Sprint.RiposteWindup = 0.30f;
+		Sprint.Release = 0.30f; Sprint.Recovery = 0.70f;
+		Sprint.StaminaCost = 16.f; Sprint.BaseDamage = 55.f;
+		Attacks.Add(EAttackDirection::Sprint, Sprint);
+
+		FMeleeAttackSpec Jump = Over;
+		Jump.Windup = 0.26f; Jump.ComboWindup = 0.26f; Jump.RiposteWindup = 0.26f;
+		Jump.Release = 0.26f; Jump.Recovery = 0.70f;
+		Jump.StaminaCost = 16.f; Jump.BaseDamage = 60.f;
+		Attacks.Add(EAttackDirection::Jump, Jump);
+
+		FMeleeAttackSpec Kick = Stab;
+		Kick.Windup = 0.24f; Kick.ComboWindup = 0.24f; Kick.RiposteWindup = 0.24f;
+		Kick.Release = 0.14f; Kick.Recovery = 0.42f;
+		Kick.StaminaCost = 12.f; Kick.BaseDamage = 0.f;
+		Attacks.Add(EAttackDirection::Kick, Kick);
 
 		RegionDamageMultiplier.Add(EBodyRegion::Head, 2.0f);
 		RegionDamageMultiplier.Add(EBodyRegion::Neck, 2.0f);

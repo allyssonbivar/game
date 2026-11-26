@@ -215,6 +215,9 @@ AEAWCharacter::AEAWCharacter()
 	EAW_ANIM(AnimMGuardaBaioneta, "AS_Mosquete_GuardaBaioneta"); EAW_ANIM(AnimMGuardaBaionetaFP, "AS_Mosquete_GuardaBaioneta_FP");
 	EAW_ANIM(AnimMAparoAlto, "AS_Mosquete_AparoAlto"); EAW_ANIM(AnimMAparoAltoFP, "AS_Mosquete_AparoAlto_FP");
 	EAW_ANIM(AnimAgachadoParado, "AS_Agachado_Parado");
+	EAW_ANIM(AnimSabreCorrendo, "AS_Sabre_Correndo"); EAW_ANIM(AnimSabreSalto, "AS_Sabre_Salto");
+	EAW_ANIM(AnimSabreCorrendoFP, "AS_Sabre_Correndo_FP"); EAW_ANIM(AnimSabreSaltoFP, "AS_Sabre_Salto_FP"); EAW_ANIM(AnimChute, "AS_Chute");
+	EAW_ANIM(AnimMChute, "AS_Mosquete_Chute"); EAW_ANIM(AnimMChuteFP, "AS_Mosquete_Chute_FP");
 	EAW_ANIM(AnimAgachadoFrente, "AS_Agachado_Frente"); EAW_ANIM(AnimAgachadoTras, "AS_Agachado_Tras");
 	EAW_ANIM(AnimAgachadoEsq, "AS_Agachado_Esq"); EAW_ANIM(AnimAgachadoDir, "AS_Agachado_Dir");
 #undef EAW_ANIM
@@ -393,6 +396,28 @@ void AEAWCharacter::Tick(float DeltaSeconds)
 		else if (T < 12.5f) { MoveForward(1.f); Turn(60.f); }
 		else if (T < 13.3f) { MoveForward(-1.f); }
 	}
+	// Teste -EAWAutoGolpe=Chute|Salto|Correndo: o soldado do jogador repete o golpe novo (fase 2) contra o bot.
+	static FString AutoGolpe;
+	static const bool bAutoGolpe = FParse::Value(FCommandLine::Get(), TEXT("EAWAutoGolpe="), AutoGolpe);
+	if (bAutoGolpe && IsLocallyControlled() && IsPlayerControlled() && Controller && GetWorld()->GetTimeSeconds() > 1.5f)
+	{
+		const float Prev = AutoWalkTime;
+		AutoWalkTime += DeltaSeconds;
+		auto Crossed = [&](float Cycle, float At) { return FMath::Fmod(Prev, Cycle) < At && FMath::Fmod(AutoWalkTime, Cycle) >= At; };
+		if (AutoGolpe == TEXT("Chute") && Crossed(2.2f, 0.2f)) { InputKick(); }
+		else if (AutoGolpe == TEXT("Salto"))
+		{
+			if (Crossed(2.6f, 0.1f)) { Jump(); }
+			if (Crossed(2.6f, 0.32f)) { InputSlash(); InputSlashReleased(); }
+		}
+		else if (AutoGolpe == TEXT("Correndo"))
+		{
+			const float T = FMath::Fmod(AutoWalkTime, 4.4f);
+			if (T < 1.3f) { if (!bSprinting) StartSprint(); MoveForward(1.f); }
+			else { if (bSprinting) StopSprint(); if (T > 1.9f && T < 3.6f) MoveForward(-1.f); }
+			if (Crossed(4.4f, 0.95f)) { InputSlash(); InputSlashReleased(); }
+		}
+	}
 	static const bool bDiagMov = FParse::Param(FCommandLine::Get(), TEXT("EAWDiagMov"));
 	if (bDiagMov && IsLocallyControlled() && IsPlayerControlled() && bAnimated)
 	{
@@ -452,6 +477,7 @@ void AEAWCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 
 	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &AEAWCharacter::InputJump);
 	PlayerInputComponent->BindAction("Crouch", IE_Pressed, this, &AEAWCharacter::InputCrouch);
+	PlayerInputComponent->BindAction("Kick", IE_Pressed, this, &AEAWCharacter::InputKick);
 	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
 	PlayerInputComponent->BindAction("Sprint", IE_Pressed, this, &AEAWCharacter::StartSprint);
 	PlayerInputComponent->BindAction("Sprint", IE_Released, this, &AEAWCharacter::StopSprint);
@@ -538,6 +564,11 @@ void AEAWCharacter::OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAd
 	UE_LOG(LogEAWCombat, Log, TEXT("%s levantou (%s)"), *GetName(), RoleName(this));
 }
 
+void AEAWCharacter::InputKick()
+{
+	if (UsesMeleeInput() && !IsSwitching()) Combat->RequestAttack(EAttackDirection::Kick);
+}
+
 void AEAWCharacter::InputJump()
 {
 	if (bIsCrouched) { UnCrouch(); return; }   // agachado: o espaco so levanta
@@ -577,6 +608,17 @@ void AEAWCharacter::InputSlash()
 	if (IsSwitching()) return;
 	if (UsingMusketFire()) { Firearm->RequestFire(); return; }
 	if (!UsesMeleeInput()) return;
+	// No ar: golpe de salto. Correndo (Shift, ja em velocidade de corrida): golpe correndo.
+	if (GetCharacterMovement()->IsFalling())
+	{
+		Combat->RequestAttack(EAttackDirection::Jump);
+		return;
+	}
+	if (bSprinting && GetVelocity().Size2D() > 380.f)
+	{
+		Combat->RequestAttack(EAttackDirection::Sprint);
+		return;
+	}
 	// Andando para a frente (W) e em guarda: comeca a carregar o golpe especial; soltar antes de 3 s vira o corte normal.
 	bAttackHeld = true;
 	const EMeleeState S = Combat->GetState();
@@ -710,10 +752,11 @@ void AEAWCharacter::ApplyMovementSpeed()
 	// Atacando nao se corre: o corpo esta comprometido com o golpe.
 	float CombatMult = 1.f;
 	bool bBusy = false;
+	const bool bSprintAttack = Combat->GetDirection() == EAttackDirection::Sprint;
 	switch (Combat->GetState())
 	{
-	case EMeleeState::Windup:   CombatMult = 0.65f; bBusy = true; break;
-	case EMeleeState::Release:  CombatMult = 0.45f; bBusy = true; break;
+	case EMeleeState::Windup:   CombatMult = bSprintAttack ? 1.f : 0.65f; bBusy = !bSprintAttack; break;
+	case EMeleeState::Release:  CombatMult = bSprintAttack ? 0.9f : 0.45f; bBusy = !bSprintAttack; break;
 	case EMeleeState::Recovery: CombatMult = 0.7f;  bBusy = true; break;
 	case EMeleeState::Parry:    CombatMult = 0.7f;  bBusy = true; break;
 	case EMeleeState::Stunned:  CombatMult = 0.35f; bBusy = true; break;
@@ -1000,7 +1043,7 @@ void AEAWCharacter::PlaySegment(UAnimSequence* Anim, float Start, float End, flo
 	};
 	if (UEAWAnimInstance* AnimLayers = Cast<UEAWAnimInstance>(GetMesh()->GetAnimInstance()))
 	{
-		AnimLayers->SetCombatSegment(Anim, Start, End, Duration, bLoop);
+		AnimLayers->SetCombatSegment(Anim, Start, End, Duration, bLoop, bSegmentFullBody);
 	}
 	else
 	{
@@ -1052,9 +1095,38 @@ void AEAWCharacter::HandleCombatState(EMeleeState NewState, EAttackDirection Dir
 		Attack = bMusket ? AnimMEspecial : AnimSabreEspecial; AttackFP = bMusket ? AnimMEspecialFP : AnimSabreEspecialFP;
 		if (bMusket) { WindupEnd = 14; ReleaseEnd = 26; Last = 50; } else { WindupEnd = 12; ReleaseEnd = 22; Last = 42; }
 		break;
+	case EAttackDirection::Sprint:
+		// Golpe correndo: o mosquete usa a estocada da cintura (as pernas continuam correndo).
+		if (!bMusket && AnimSabreCorrendo) { Attack = AnimSabreCorrendo; AttackFP = AnimSabreCorrendoFP; WindupEnd = 10; ReleaseEnd = 18; Last = 36; }
+		break;
+	case EAttackDirection::Jump:
+		if (bMusket) { Attack = AnimMEstocadaLonga; AttackFP = AnimMEstocadaLongaFP; WindupEnd = 17; ReleaseEnd = 27; Last = 45; }
+		else if (AnimSabreSalto) { Attack = AnimSabreSalto; AttackFP = AnimSabreSaltoFP; WindupEnd = 12; ReleaseEnd = 19; Last = 40; }
+		break;
+	case EAttackDirection::Kick:
+		Attack = bMusket ? AnimMChute : AnimChute; AttackFP = bMusket ? AnimMChuteFP : nullptr;
+		WindupEnd = 8; ReleaseEnd = 13; Last = 30;
+		break;
 	default: break;
 	}
-	if (bMusket && NewState == EMeleeState::Windup)
+	// Chute e golpe de salto: as pernas seguem a animacao do golpe (nos outros estados, as pernas voltam ao movimento).
+	const bool bAttackState = NewState == EMeleeState::Windup || NewState == EMeleeState::Release || NewState == EMeleeState::Recovery;
+	bSegmentFullBody = bAttackState && (Direction == EAttackDirection::Kick || (Direction == EAttackDirection::Jump && !bMusket));
+	// O que acerta no chute e a perna (do joelho a ponta do pe); nos outros golpes volta a lamina da arma.
+	if (NewState == EMeleeState::Windup)
+	{
+		if (Direction == EAttackDirection::Kick)
+		{
+			Combat->GripSocket = TEXT("calf_r"); Combat->TipSocket = TEXT("ball_r");
+			Combat->AnimBladeStart = 12.f; Combat->AnimBladeLength = 0.f;
+		}
+		else if (!SavedGrip.IsNone())
+		{
+			Combat->GripSocket = SavedGrip; Combat->TipSocket = SavedTip;
+			Combat->AnimBladeStart = SavedBladeStart; Combat->AnimBladeLength = SavedBladeLength;
+		}
+	}
+	if (bMusket && NewState == EMeleeState::Windup && Direction != EAttackDirection::Kick)
 	{
 		// O que corta: coronhada = coronha (do punho ate a soleira); estocadas = baioneta (da boca a ponta).
 		const bool bButt = Direction == EAttackDirection::Stab;
@@ -1112,9 +1184,9 @@ void AEAWCharacter::HandleCombatState(EMeleeState NewState, EAttackDirection Dir
 	case EMeleeState::Release:
 		PlaySegment(Attack, T(WindupEnd), T(ReleaseEnd), D, false, AttackFP);
 		// O corpo avanca com o golpe (maior na estocada).
-		if (HasAuthority() || IsLocallyControlled())
+		if ((HasAuthority() || IsLocallyControlled()) && Direction != EAttackDirection::Sprint)   // correndo: o corpo ja vai
 		{
-			float Lunge = Direction == EAttackDirection::Stab ? LungeStab : LungeSlash;
+			float Lunge = Direction == EAttackDirection::Stab ? LungeStab : Direction == EAttackDirection::Kick ? 560.f : LungeSlash;   // chute: passo para a frente (alcance ~1,5 m, a distancia normal de luta)
 			FVector LungeDir = GetActorForwardVector();
 			if (Direction == EAttackDirection::Special)
 			{
@@ -2141,6 +2213,8 @@ void AEAWCharacter::ApplyWeaponCombatConfig()
 		break;
 	}
 	Combat->DefaultConfig = C;
+	SavedGrip = Combat->GripSocket; SavedTip = Combat->TipSocket;
+	SavedBladeStart = Combat->AnimBladeStart; SavedBladeLength = Combat->AnimBladeLength;
 }
 
 // ---------------------------------------------------------------------------

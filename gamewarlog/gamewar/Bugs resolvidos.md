@@ -100,3 +100,5 @@ atualizado: 2026-11-26
 | 65 | 2026-11-26 | Pé escorregando ~1,5 m/s andando na diagonal | Diagonal = soma das animações de frente e de lado (passos diferentes) | Trote próprio nas 4 diagonais + mistura por ângulo só entre vizinhas |
 | 66 | 2026-11-26 | Diagonal para trás mais rápida que para trás (≈3,0 × 1,95 m/s) | Cada tecla somava a sua escala e o limite de 1 cortava depois | Teclas viram uma direção com a elipse de velocidades (`ComposeMoveInput`) |
 | 67 | 2026-11-26 | Arma/tronco dando "tranco" ao partir, parar, virar e quando o mouse para | Mistura exponencial (começa na velocidade máxima), freada de 0,07 s, giro do corpo começando em 320–540°/s | Molas críticas, freada ~0,15 s, giro com aceleração/freio |
+| 68 | 2026-11-26 | Chute não alcançava o bot a 1,3–1,5 m | Pé chegava a ~0,75 m do corpo e o passo era pequeno | Quadril vai à frente, perna estica a 0,84 m e passo maior no chute: alcance ~1,5 m |
+| 69 | 2026-11-26 | Na 1ª pessoa a mão esquerda tapava a tela no golpe correndo/de salto | Pose de equilíbrio (mão esquerda à frente na altura do peito) fica colada na lente | Versões `_FP` com a mão esquerda baixa e o quadril quase parado |

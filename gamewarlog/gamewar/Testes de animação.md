@@ -155,3 +155,7 @@ Capturas a cada 0,2–0,3 s com `-EAWDuelo`; cortes forçados com `-EAWTesteCort
 | Fumaça nova (1ª pessoa) | ✔ nuvem enche a tela no tiro, fica ~9 s e some devagar; sem as linhas no chão (bug #62) |
 | Agachar em rede (2 janelas) | ✔ cliente agachou → servidor recebeu |
 | Roteiro de movimento (fase 1, 60 qps) | ✔ ponta da arma p95 2.854 → 1.922; inverter para trás 8.345 → 1.553; escorregão na diagonal ~160 → ~58 cm/s |
+| Golpe correndo (bot a 5 m) | ✔ chega correndo e corta sem frear (acertou braço 38,5; em outro teste cabeça 110) |
+| Golpe de salto (bot a 1,7 m) | ✔ pula, sabre no alto, desce e acerta (60) |
+| Chute (sabre e baioneta) | ✔ joelho sobe, pé na barriga, bot empurrado ~1 m e atordoado; alcance ~1,5 m |
+| 1ª pessoa (correndo/salto) | ✔ lâmina cruza a tela; mão esquerda não tapa mais (bug #69) |

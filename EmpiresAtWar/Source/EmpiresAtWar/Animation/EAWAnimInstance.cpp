@@ -65,7 +65,7 @@ float UEAWAnimInstance::SegmentTime(const FEAWSegment& S, float Elapsed) const
 	return S.Start + T;
 }
 
-void UEAWAnimInstance::SetCombatSegment(UAnimSequence* Anim, float Start, float End, float Duration, bool bLoop)
+void UEAWAnimInstance::SetCombatSegment(UAnimSequence* Anim, float Start, float End, float Duration, bool bLoop, bool bFullBody)
 {
 	if (Seg.Anim)
 	{
@@ -78,6 +78,7 @@ void UEAWAnimInstance::SetCombatSegment(UAnimSequence* Anim, float Start, float 
 	Seg.Start = Start;
 	Seg.End = End;
 	Seg.bLoop = bLoop;
+	Seg.bFullBody = bFullBody;
 	Seg.Rate = Duration > KINDA_SMALL_NUMBER ? (End - Start) / Duration : 1.f;
 	SegElapsed = 0.f;
 }
@@ -211,6 +212,8 @@ void UEAWAnimInstance::TickValues(float Dt, FEAWAnimFrame& Out)
 	Out.LocoWeight = LocoWeight;
 	Out.RunWeight = RunWeight;
 	Out.UpperRunWeight = UpperRunWeight;
+	SpringTo(FullBody, FullBodyVel, Seg.bFullBody ? 1.f : 0.f, 20.f, Dt);
+	Out.FullBodyWeight = FMath::Clamp(FullBody, 0.f, 1.f);
 	Out.AimYaw = AimYaw;
 	Out.CrouchIdle = CrouchIdle;
 	for (int32 i = 0; i < 4; ++i)
@@ -316,7 +319,8 @@ bool FEAWAnimProxy::Evaluate(FPoseContext& Output)
 		FTransform T = CombatPose.Pose[I];
 		if (bLoco)
 		{
-			const float W = UpperMask[I.GetInt()] ? Data.UpperRunWeight : Data.LocoWeight;
+			// Chute/golpe de salto: as pernas tambem seguem o golpe (FullBodyWeight tira o movimento das pernas).
+			const float W = UpperMask[I.GetInt()] ? Data.UpperRunWeight : Data.LocoWeight * (1.f - Data.FullBodyWeight);
 			if (W > 0.f)
 			{
 				FTransform R;

@@ -33,3 +33,4 @@ atualizado: 2026-11-26
 | Baioneta do vídeo x1 e agachado (poses e montagem) | `Soldado.blend` → texto `eaw_baioneta` (`build_bay()`, `build_crouch()`; precisa de `eaw_rifle_anims` antes) |
 | Agachado no animador | `Source\EmpiresAtWar\Animation\EAWAnimInstance.cpp` (camada agachada + arma presa ao quadril) |
 | Referência baioneta/agachar/fumaça (só estudo, fora do Git) | `Modelos\ex\x1.mp4` |
+| Ataques da fase 2 (golpe correndo, salto, chute) | `Soldado.blend` → texto `eaw_ataques` (`build_attacks()`, `build_attacks_fp()`) |
